@@ -134,6 +134,7 @@ function buildCompound(
   // Two sliding/hinged gate leaves of vertical metal slats.
   for (const side of [-1, 1] as const) {
     const pivot = new Group();
+    pivot.userData.dynamic = true;
     const hingeX = W / 2 + (side * gateW) / 2;
     pivot.position.set(hingeX, 0, zFront - T / 2);
     const leafW = gateW / 2 - 0.1;

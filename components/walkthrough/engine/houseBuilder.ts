@@ -314,6 +314,7 @@ export class HouseBuilder {
     this.group.add(this.panelMesh(axis, fixed, u1, u1 + FRAME, sill, head, t + 0.02, frame));
     // Hinged leaf, pivoting about the jamb at u0.
     const pivot = new Object3D();
+    pivot.userData.dynamic = true;
     const leaf = box(
       axis === 'x' ? width : 0.05,
       leafH,

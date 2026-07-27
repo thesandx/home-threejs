@@ -10,6 +10,7 @@
 
 import {
   ACESFilmicToneMapping,
+  type BufferGeometry,
   Clock,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -28,6 +29,7 @@ import { HouseBuilder } from './houseBuilder';
 import { DoorSystem } from './interaction/doors';
 import { Lighting } from './lighting';
 import { MaterialLibrary } from './materials';
+import { mergeStatic } from './merge';
 import { ENVELOPE, levelFloorY } from './plan';
 import { PostFx } from './postfx';
 import { Sky } from './sky';
@@ -69,7 +71,12 @@ export class WalkthroughEngine {
   private lastEmit = 0;
   private listener: StateListener | null = null;
   private readonly resizeObserver: ResizeObserver;
-  private readonly focus = new Vector3();
+  private readonly houseCenter = new Vector3(
+    ENVELOPE.width / 2,
+    (ENVELOPE.levels * ENVELOPE.levelHeight) / 2,
+    ENVELOPE.depth / 2,
+  );
+  private mergedDisposables: BufferGeometry[] = [];
 
   private state: WalkthroughState = {
     ready: false,
@@ -88,11 +95,15 @@ export class WalkthroughEngine {
       canvas,
       antialias: false,
       powerPreference: 'high-performance',
-      preserveDrawingBuffer: true,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Cap at 1.5x device pixels: past that the extra fragments cost more than
+    // they show on an already anti-aliased (SMAA) image.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
+    // The sun is fixed to the house, so shadows are static: render the shadow
+    // map only when something changes (time of day, hidden walls), not per frame.
+    this.renderer.shadowMap.autoUpdate = false;
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.outputColorSpace = SRGBColorSpace;
 
@@ -105,13 +116,15 @@ export class WalkthroughEngine {
 
     this.lighting = new Lighting(this.scene);
 
-    // Build the world.
+    // Build the world, then batch every static mesh by material so the whole
+    // three-storey furnished house draws in a few dozen calls instead of
+    // thousands. Hinged doors and the gate are tagged dynamic and stay separate.
     const house = new HouseBuilder(this.materials).build();
-    this.scene.add(house.group);
-    this.scene.add(furnishHouse(this.materials, house.placedRooms));
-
+    const furniture = furnishHouse(this.materials, house.placedRooms);
     const site = buildSite(this.materials);
-    this.scene.add(site.group);
+    const batched = mergeStatic([house.group, furniture, site.group]);
+    this.scene.add(batched.group);
+    this.mergedDisposables = batched.disposables;
 
     const colliders: Collider[] = [...house.colliders, ...site.colliders];
     const floors: FloorSurface[] = [...house.floors, ...site.floors];
@@ -222,6 +235,7 @@ export class WalkthroughEngine {
   setTime(time: TimeOfDayId): void {
     this.state.time = time;
     this.lighting.setTime(time);
+    this.renderer.shadowMap.needsUpdate = true; // sun angle changed
     this.emit();
   }
 
@@ -249,6 +263,7 @@ export class WalkthroughEngine {
     this.scene.traverse((o) => {
       if (o.userData.roof) o.visible = !this.state.roofHidden;
     });
+    this.renderer.shadowMap.needsUpdate = true;
     this.emit();
   }
 
@@ -257,6 +272,7 @@ export class WalkthroughEngine {
     this.scene.traverse((o) => {
       if (o.userData.exteriorWall) o.visible = !this.state.wallsHidden;
     });
+    this.renderer.shadowMap.needsUpdate = true;
     this.emit();
   }
 
@@ -291,6 +307,8 @@ export class WalkthroughEngine {
     this.lighting.dispose();
     this.materials.dispose();
     this.sky.dispose();
+    for (const geo of this.mergedDisposables) geo.dispose();
+    this.mergedDisposables = [];
     this.renderer.dispose();
   }
 
@@ -302,10 +320,17 @@ export class WalkthroughEngine {
     else this.director.update(dt);
     this.doors.update(dt);
 
-    this.focus.copy(this.camera.position);
-    this.focus.y = Math.max(0, this.focus.y - 1);
-    this.lighting.update(dt, this.sky, this.renderer, this.scene, this.focus);
+    this.lighting.update(
+      dt,
+      this.sky,
+      this.renderer,
+      this.scene,
+      this.houseCenter,
+      this.camera.position,
+    );
 
+    // Renders the static shadow map only on frames where a change asked for it
+    // (autoUpdate is off); the renderer clears needsUpdate itself afterwards.
     this.postfx.render();
 
     // FPS, emitted at ~2 Hz.

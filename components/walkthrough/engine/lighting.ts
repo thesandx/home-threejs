@@ -30,6 +30,10 @@ interface PlacedRoom {
   center: Vector3;
 }
 
+/** Hard cap on interior point lights shaded per frame — the ones nearest the
+ *  camera win. Forward rendering cost scales with active lights, not total. */
+const MAX_ACTIVE_LIGHTS = 6;
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
@@ -123,7 +127,14 @@ export class Lighting {
     this.target = p;
   }
 
-  update(dt: number, sky: Sky, renderer: WebGLRenderer, scene: Scene, focus: Vector3): void {
+  update(
+    dt: number,
+    sky: Sky,
+    renderer: WebGLRenderer,
+    scene: Scene,
+    sunFocus: Vector3,
+    cameraPos: Vector3,
+  ): void {
     const k = Math.min(1, dt * 1.4);
     const p = this.target;
     this.liveSunColor.lerp(p.sunColor, k);
@@ -147,10 +158,11 @@ export class Lighting {
     this.hemi.intensity = this.liveHemi;
     this.ambient.intensity = this.liveAmbient;
 
-    // Sun position follows the player so shadows stay sharp near the camera.
+    // Sun is anchored to the house centre, not the player, so its shadow map is
+    // static and can be rendered once per time change instead of every frame.
     const d = sunDirection(p);
-    this.sun.position.copy(focus).addScaledVector(d, 120);
-    this.sun.target.position.copy(focus);
+    this.sun.position.copy(sunFocus).addScaledVector(d, 120);
+    this.sun.target.position.copy(sunFocus);
 
     // Sky + fog + exposure.
     sky.setGradient(this.liveTop, this.liveHorizon, this.liveBottom);
@@ -160,13 +172,21 @@ export class Lighting {
     this.fog.density = this.liveFogD;
     renderer.toneMappingExposure = this.liveExposure;
 
-    // Interior fixtures.
+    // Interior fixtures: only the few nearest the camera stay active, so the
+    // forward renderer never shades more than MAX_ACTIVE_LIGHTS point lights at
+    // once regardless of how many rooms the house has.
     const wantOn = this.interiorForced ?? p.interiorLights;
     const targetK = Math.min(1, dt * 3);
-    for (const light of this.interior) {
+    const nearest = this.interior
+      .slice()
+      .sort(
+        (a, b) => a.position.distanceToSquared(cameraPos) - b.position.distanceToSquared(cameraPos),
+      );
+    for (const [i, light] of nearest.entries()) {
+      const active = wantOn && i < MAX_ACTIVE_LIGHTS;
+      light.visible = active;
       const base = (light.userData.baseIntensity as number | undefined) ?? 8;
-      const goal = wantOn ? base : 0;
-      light.intensity = lerp(light.intensity, goal, targetK);
+      light.intensity = active ? lerp(light.intensity, base, targetK) : 0;
     }
     this.interiorOn = wantOn;
   }

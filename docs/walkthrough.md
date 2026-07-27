@@ -67,7 +67,22 @@ change the layout, edit the plan — the walls follow.
 
 ## Performance
 
-The scene reuses shared box, cylinder and sphere geometries scaled per
-instance, so the whole furnished, three-storey house stays within a few hundred
-draw calls. Shadows come from a single sun whose shadow frustum follows the
-player. Target frame rate is 60 fps on a modern GPU.
+Target frame rate is 60 fps on a modern GPU. The scene is kept cheap by four
+measures, in order of impact:
+
+- **Static geometry batching** (`engine/merge.ts`). After the builders run,
+  every static mesh is baked into world space and merged by material into a
+  handful of large meshes. The furnished three-storey house draws in ~170 calls
+  instead of several thousand. Hinged doors and the gate are tagged
+  `dynamic` and stay separate so they still animate.
+- **Capped interior lights**. Forward rendering pays for every active light per
+  pixel, so only the six point lights nearest the camera are shaded at once; the
+  rest are hidden. The house can have any number of rooms at no extra cost.
+- **Static shadows**. The sun is anchored to the house, not the player, so its
+  shadow map is rendered only when the time of day (or a hidden wall) changes —
+  not every frame.
+- **Pixel-ratio cap** at 1.5, and no `preserveDrawingBuffer`. Screenshots render
+  one synchronous frame on demand instead of keeping every frame readable.
+
+Geometry itself reuses shared box, cylinder and sphere primitives scaled per
+instance, so buffer memory stays flat before merging too.
