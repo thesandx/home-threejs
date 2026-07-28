@@ -20,6 +20,7 @@ import {
   WebGLRenderer,
 } from 'three';
 
+import { Soundscape } from './audio/soundscape';
 import { CameraDirector, type CameraMode } from './controls/cameras';
 import { FirstPersonControls } from './controls/firstPerson';
 import { createEnvironmentMap } from './environment';
@@ -35,6 +36,7 @@ import { PostFx } from './postfx';
 import { Sky } from './sky';
 import { TIME_ORDER, type TimeOfDayId } from './timeOfDay';
 import type { Collider, DoorHandle, FloorSurface } from './types';
+import { Dust } from './vfx/dust';
 
 export interface WalkthroughState {
   ready: boolean;
@@ -45,7 +47,13 @@ export interface WalkthroughState {
   interiorOn: boolean;
   roofHidden: boolean;
   wallsHidden: boolean;
+  muted: boolean;
   fps: number;
+}
+
+export interface EngineOptions {
+  /** Ambient hero mode: auto-cinematic, no pointer lock, no player controls. */
+  ambient?: boolean;
 }
 
 export type StateListener = (state: WalkthroughState) => void;
@@ -62,15 +70,22 @@ export class WalkthroughEngine {
   private readonly director: CameraDirector;
   private readonly doors: DoorSystem;
   private readonly postfx: PostFx;
+  private readonly audio = new Soundscape();
+  private readonly dust: Dust;
   private readonly spawns = new Map<number, Vector3>();
+  private readonly ambient: boolean;
+  private readonly reducedMotion: boolean;
 
   private frameHandle = 0;
   private disposed = false;
+  private running = true;
+  private onscreen = true;
   private fpsAccum = 0;
   private fpsFrames = 0;
   private lastEmit = 0;
   private listener: StateListener | null = null;
   private readonly resizeObserver: ResizeObserver;
+  private readonly intersectionObserver: IntersectionObserver;
   private readonly houseCenter = new Vector3(
     ENVELOPE.width / 2,
     (ENVELOPE.levels * ENVELOPE.levelHeight) / 2,
@@ -87,10 +102,18 @@ export class WalkthroughEngine {
     interiorOn: false,
     roofHidden: false,
     wallsHidden: false,
+    muted: false,
     fps: 0,
   };
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    options: EngineOptions = {},
+  ) {
+    this.ambient = options.ambient ?? false;
+    this.reducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.renderer = new WebGLRenderer({
       canvas,
       antialias: false,
@@ -133,6 +156,13 @@ export class WalkthroughEngine {
     this.lighting.createInteriorLights(house.placedRooms);
     for (const light of this.lighting.interiorLights) this.scene.add(light);
 
+    // Atmospheric dust drifting through the house volume.
+    this.dust = new Dust(
+      { x0: 0, z0: 0, x1: ENVELOPE.width, z1: ENVELOPE.depth },
+      ENVELOPE.levels * ENVELOPE.levelHeight,
+    );
+    this.scene.add(this.dust.points);
+
     // Per-floor spawn points at the central dining/hall of each level.
     for (let level = 0; level < ENVELOPE.levels; level += 1) {
       const dining = house.placedRooms.find(
@@ -161,6 +191,9 @@ export class WalkthroughEngine {
 
     this.postfx = new PostFx(this.renderer, this.scene, this.camera, w, h);
 
+    // Head bob is motion; honour the OS reduced-motion preference.
+    this.fp.setBob(!this.reducedMotion);
+
     // Start the player just inside the front gate, looking at the house.
     this.fp.setPosition(ENVELOPE.width / 2, 0, -ENVELOPE.frontBalcony - 4);
     this.camera.lookAt(ENVELOPE.width / 2, 3, ENVELOPE.depth / 3);
@@ -172,7 +205,23 @@ export class WalkthroughEngine {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
 
+    // Pause the loop when the tab is hidden or the canvas scrolls offscreen.
+    document.addEventListener('visibilitychange', this.onVisibility);
+    this.intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        this.onscreen = entries.some((e) => e.isIntersecting);
+        this.syncRunning();
+      },
+      { threshold: 0.01 },
+    );
+    this.intersectionObserver.observe(canvas);
+
     this.setTime('afternoon');
+
+    // Ambient hero: no player, a gentle scripted move (static under reduced motion).
+    if (this.ambient) {
+      this.setCameraMode(this.reducedMotion ? 'street' : 'cinematic');
+    }
     this.state.ready = true;
   }
 
@@ -205,17 +254,41 @@ export class WalkthroughEngine {
   }
 
   start(): void {
-    const loop = (): void => {
-      if (this.disposed) return;
-      this.frameHandle = requestAnimationFrame(loop);
-      this.tick();
-    };
-    this.frameHandle = requestAnimationFrame(loop);
+    this.running = true;
+    this.frameHandle = requestAnimationFrame(this.loop);
   }
 
+  private readonly loop = (): void => {
+    if (this.disposed || !this.running) return;
+    this.frameHandle = requestAnimationFrame(this.loop);
+    this.tick();
+  };
+
+  /** Pause when the tab is hidden or the canvas is scrolled fully offscreen. */
+  private syncRunning(): void {
+    const shouldRun = !this.disposed && !document.hidden && this.onscreen;
+    if (shouldRun && !this.running) {
+      this.running = true;
+      this.clock.getDelta(); // discard the idle gap so dt does not spike
+      this.frameHandle = requestAnimationFrame(this.loop);
+    } else if (!shouldRun && this.running) {
+      this.running = false;
+      cancelAnimationFrame(this.frameHandle);
+    }
+  }
+
+  private readonly onVisibility = (): void => this.syncRunning();
+
   enterFirstPerson(): void {
+    this.audio.resume(); // this call comes from a click — unlock audio here
     this.setCameraMode('first-person');
     this.fp.lock();
+  }
+
+  toggleMute(): void {
+    this.state.muted = !this.state.muted;
+    this.audio.setMuted(this.state.muted);
+    this.emit();
   }
 
   setCameraMode(mode: CameraMode): void {
@@ -235,6 +308,7 @@ export class WalkthroughEngine {
   setTime(time: TimeOfDayId): void {
     this.state.time = time;
     this.lighting.setTime(time);
+    this.audio.setTime(time);
     this.renderer.shadowMap.needsUpdate = true; // sun angle changed
     this.emit();
   }
@@ -283,7 +357,11 @@ export class WalkthroughEngine {
   }
 
   interact(): void {
-    this.doors.interact(this.fp.position);
+    const handle = this.doors.interact(this.fp.position);
+    if (handle) {
+      if (handle.label === 'Gate') this.audio.gate();
+      else this.audio.door();
+    }
   }
 
   screenshot(): string {
@@ -297,8 +375,11 @@ export class WalkthroughEngine {
 
   dispose(): void {
     this.disposed = true;
+    this.running = false;
     cancelAnimationFrame(this.frameHandle);
     this.resizeObserver.disconnect();
+    this.intersectionObserver.disconnect();
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.fp.disconnect();
     this.fp.pointerLock.removeEventListener('lock', this.onLock);
     this.fp.pointerLock.removeEventListener('unlock', this.onUnlock);
@@ -307,6 +388,8 @@ export class WalkthroughEngine {
     this.lighting.dispose();
     this.materials.dispose();
     this.sky.dispose();
+    this.dust.dispose();
+    this.audio.dispose();
     for (const geo of this.mergedDisposables) geo.dispose();
     this.mergedDisposables = [];
     this.renderer.dispose();
@@ -316,9 +399,15 @@ export class WalkthroughEngine {
 
   private tick(): void {
     const dt = Math.min(this.clock.getDelta(), 0.1);
-    if (this.state.mode === 'first-person') this.fp.update(dt);
-    else this.director.update(dt);
+    if (this.state.mode === 'first-person') {
+      this.fp.update(dt);
+      if (this.fp.consumeStep()) this.audio.footstep();
+    } else {
+      this.director.update(dt);
+    }
     this.doors.update(dt);
+    this.audio.update(dt);
+    if (!this.reducedMotion) this.dust.update(dt);
 
     this.lighting.update(
       dt,

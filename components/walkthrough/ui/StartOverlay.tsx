@@ -11,10 +11,11 @@
 
 export interface StartOverlayProps {
   ready: boolean;
+  progress: number;
   onEnter: () => void;
 }
 
-export function StartOverlay({ ready, onEnter }: StartOverlayProps) {
+export function StartOverlay({ ready, progress, onEnter }: StartOverlayProps) {
   return (
     <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 px-6 text-center backdrop-blur-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/90">
@@ -37,9 +38,14 @@ export function StartOverlay({ ready, onEnter }: StartOverlayProps) {
           Enter the villa →
         </button>
       ) : (
-        <div className="mt-8 flex items-center gap-3 text-white/80">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          Building the house…
+        <div className="mt-8 w-full max-w-xs">
+          <div className="h-1 w-full overflow-hidden rounded-full bg-white/15">
+            <div
+              className="h-full rounded-full bg-amber-300 transition-[width] duration-200 ease-out"
+              style={{ width: `${Math.round(progress)}%` }}
+            />
+          </div>
+          <p className="mt-3 text-sm text-white/70">Building the villa… {Math.round(progress)}%</p>
         </div>
       )}
 

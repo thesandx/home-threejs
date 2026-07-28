@@ -21,8 +21,9 @@ function easeInOut(t: number): number {
 export class DoorSystem {
   constructor(private readonly doors: DoorHandle[]) {}
 
-  /** Open or close the door closest to the player, if one is within reach. */
-  interact(playerPos: Vector3): boolean {
+  /** Open or close the door closest to the player, if one is within reach.
+   *  Returns the handle that toggled (so the caller can cue audio), else null. */
+  interact(playerPos: Vector3): DoorHandle | null {
     let nearest: DoorHandle | null = null;
     let best = REACH * REACH;
     for (const door of this.doors) {
@@ -34,9 +35,9 @@ export class DoorSystem {
         nearest = door;
       }
     }
-    if (!nearest) return false;
+    if (!nearest) return null;
     nearest.open = !nearest.open;
-    return true;
+    return nearest;
   }
 
   openAll(open: boolean): void {

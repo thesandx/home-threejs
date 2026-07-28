@@ -43,6 +43,7 @@ export interface ControlBarProps {
   interiorOn: boolean;
   roofHidden: boolean;
   wallsHidden: boolean;
+  muted: boolean;
   onTime: (id: TimeOfDayId) => void;
   onCamera: (id: CameraMode) => void;
   onFloor: (level: number) => void;
@@ -50,6 +51,7 @@ export interface ControlBarProps {
   onToggleRoof: () => void;
   onToggleWalls: () => void;
   onToggleLights: () => void;
+  onToggleMute: () => void;
   onScreenshot: () => void;
   onHelp: () => void;
 }
@@ -128,6 +130,9 @@ export function ControlBar(props: ControlBarProps) {
       </Group>
 
       <Group label="Capture">
+        <Pill active={!props.muted} onClick={props.onToggleMute}>
+          {props.muted ? '🔇' : '🔊'}
+        </Pill>
         <Pill onClick={props.onScreenshot}>📷 Shot</Pill>
         <Pill onClick={props.onHelp}>?</Pill>
       </Group>

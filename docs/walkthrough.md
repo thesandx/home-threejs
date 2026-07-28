@@ -55,10 +55,17 @@ components/walkthrough/
     materials.ts textures.ts  procedural PBR materials
     sky.ts lighting.ts timeOfDay.ts  sky dome, sun/fill, day-night presets
     postfx.ts              bloom + SMAA + ACES output
+    merge.ts               static geometry batching (draw-call reduction)
     controls/              first-person movement and camera director
     interaction/doors.ts   hinged doors and gate
+    audio/soundscape.ts    synthesized ambient + cues (Web Audio, no files)
+    vfx/dust.ts            drifting dust motes
     Engine.ts              orchestrates the scene and the frame loop
 ```
+
+The landing page (`app/page.tsx`) reuses the same component in an `ambient`
+variant: a self-running cinematic behind the hero headline, with no UI, no
+pointer lock and no audio. The interactive route uses the `experience` variant.
 
 The floor plan lives in one place: `engine/plan.ts`. Rooms are rectangles in
 feet, converted to metres. Interior walls are derived from the shared edges of
@@ -86,3 +93,15 @@ measures, in order of impact:
 
 Geometry itself reuses shared box, cylinder and sphere primitives scaled per
 instance, so buffer memory stays flat before merging too.
+
+## Immersion and accessibility
+
+- **Sound** is synthesized live with the Web Audio API (`audio/soundscape.ts`)
+  — a wind bed, day birds, night crickets, footsteps, doors and the gate. There
+  are no audio files. It unlocks only on the Enter click, has a mute toggle, and
+  releases each one-shot node on its `ended` event.
+- **Reduced motion** is honoured: head bob is disabled, the dust field holds
+  still, the landing hero shows a static street frame, and the CSS intro
+  collapses to an instant under `prefers-reduced-motion: reduce`.
+- **The loop pauses** when the tab is hidden or the canvas scrolls offscreen
+  (visibility + IntersectionObserver), so background tabs cost nothing.

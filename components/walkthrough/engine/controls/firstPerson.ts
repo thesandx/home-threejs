@@ -41,6 +41,9 @@ export class FirstPersonControls {
   private onGround = true;
   private crouching = false;
   private bob = 0;
+  private bobEnabled = true;
+  private strideAccum = 0;
+  private stepReady = false;
   private enabled = true;
 
   constructor(
@@ -152,8 +155,32 @@ export class FirstPersonControls {
     } else {
       this.bob *= 0.85;
     }
-    const bobY = Math.sin(this.bob * 2) * 0.035 * (this.onGround ? 1 : 0);
+    const bobY = this.bobEnabled ? Math.sin(this.bob * 2) * 0.035 * (this.onGround ? 1 : 0) : 0;
     this.camera.position.set(this.feet.x, this.feet.y + targetEye + bobY, this.feet.z);
+
+    // Footstep signal: one step per stride length walked on the ground.
+    const planar = Math.hypot(this.velocity.x, this.velocity.z);
+    if (moving && this.onGround && planar > 0.4) {
+      this.strideAccum += planar * step;
+      const stride = this.crouching ? 0.55 : 0.72;
+      if (this.strideAccum >= stride) {
+        this.strideAccum = 0;
+        this.stepReady = true;
+      }
+    } else {
+      this.strideAccum = 0;
+    }
+  }
+
+  /** True once per stride; consumed on read, so the caller triggers one sound. */
+  consumeStep(): boolean {
+    if (!this.stepReady) return false;
+    this.stepReady = false;
+    return true;
+  }
+
+  setBob(enabled: boolean): void {
+    this.bobEnabled = enabled;
   }
 
   private moveAxis(axis: 'x' | 'z', delta: number): void {
