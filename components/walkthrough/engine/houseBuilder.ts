@@ -120,16 +120,23 @@ export class HouseBuilder {
         a0: x0,
         a1: x1,
         thickness: EXT_THICK,
-        material: this.mats.stucco,
+        material: this.mats.facadeCream,
       },
-      { axis: 'x', fixed: zRear, a0: x0, a1: x1, thickness: EXT_THICK, material: this.mats.stucco },
+      {
+        axis: 'x',
+        fixed: zRear,
+        a0: x0,
+        a1: x1,
+        thickness: EXT_THICK,
+        material: this.mats.facadeCream,
+      },
       {
         axis: 'z',
         fixed: x0,
         a0: zFront,
         a1: zRear,
         thickness: EXT_THICK,
-        material: this.mats.stucco,
+        material: this.mats.facadeCream,
       },
       {
         axis: 'z',
@@ -137,7 +144,7 @@ export class HouseBuilder {
         a0: zFront,
         a1: zRear,
         thickness: EXT_THICK,
-        material: this.mats.stucco,
+        material: this.mats.facadeCream,
       },
     ];
     this.tagExterior = true;
@@ -366,12 +373,16 @@ export class HouseBuilder {
     const finish = this.floorFinish(room.kind);
     // Finish surface (walkable).
     this.group.add(box(w, 0.03, d, finish, cx, floorY - 0.015, cz, { cast: false }));
-    // Structural slab; its underside is the ceiling of the room below.
-    const under = room.kind === 'balcony' ? this.mats.soffitWood : this.mats.ceiling;
+    // Structural slab; its underside is the ceiling of the room below. Balcony
+    // soffits are the dark stained timber seen in the reference photographs.
+    const under = room.kind === 'balcony' ? this.mats.balconyCeiling : this.mats.ceiling;
     this.group.add(box(w, 0.12, d, under, cx, floorY - 0.09, cz, { cast: false }));
     this.floors.push({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, y: floorY });
 
-    if (room.kind === 'balcony') this.buildBalconyRail(room, floorY);
+    // The ground-floor "balcony" is the open stilt porch — it has columns and a
+    // driveway, not a balustrade. The facade module builds that instead.
+    const level = Math.round(floorY / ENVELOPE.levelHeight);
+    if (room.kind === 'balcony' && level > 0) this.buildBalconyRail(room, floorY);
   }
 
   private floorFinish(kind: Room['kind']): Material {
@@ -519,9 +530,15 @@ export class HouseBuilder {
           cast: true,
         }),
       );
-      this.group.add(box(0.15, mH, z1 - z0 + 0.4, this.mats.stucco, x0 - 0.2, roofY + mH / 2, cz));
-      this.group.add(box(0.15, mH, z1 - z0 + 0.4, this.mats.stucco, x1 + 0.2, roofY + mH / 2, cz));
-      this.group.add(box(x1 - x0 + 0.4, mH, 0.15, this.mats.stucco, cx, roofY + mH / 2, z1 + 0.2));
+      this.group.add(
+        box(0.15, mH, z1 - z0 + 0.4, this.mats.facadeCream, x0 - 0.2, roofY + mH / 2, cz),
+      );
+      this.group.add(
+        box(0.15, mH, z1 - z0 + 0.4, this.mats.facadeCream, x1 + 0.2, roofY + mH / 2, cz),
+      );
+      this.group.add(
+        box(x1 - x0 + 0.4, mH, 0.15, this.mats.facadeCream, cx, roofY + mH / 2, z1 + 0.2),
+      );
     }
     // Water tank, a familiar Indian-rooftop silhouette.
     this.group.add(box(1.2, 1.0, 1.2, this.mats.paint(0x2a6ad0), w - 2, roofY + 1.2, 2));

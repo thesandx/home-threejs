@@ -134,7 +134,9 @@ export class WalkthroughEngine {
     this.camera = new PerspectiveCamera(62, w / Math.max(h, 1), 0.1, 1200);
 
     this.scene.environment = createEnvironmentMap(this.renderer);
-    this.scene.environmentIntensity = 0.22;
+    // Enough image-based fill that the deep balcony loggias and the stilt porch
+    // read as shaded daylight rather than black holes.
+    this.scene.environmentIntensity = 0.42;
     this.scene.add(this.sky.mesh);
 
     this.lighting = new Lighting(this.scene);

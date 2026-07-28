@@ -121,6 +121,35 @@ export function woodTexture(repeat: number, vertical = true): CanvasTexture {
   return tex;
 }
 
+/**
+ * Terracotta decking slats with deep shadow gaps, for the projecting window
+ * hoods and the balcony louvres. The gaps carry the read at distance, so they
+ * are drawn hard-edged and dark rather than softly shaded.
+ */
+export function slatTexture(repeat: number, boards = 7): CanvasTexture {
+  const size = 512;
+  const { canvas, ctx } = createCanvas(size);
+  const rnd = mulberry32(53);
+  const h = size / boards;
+  for (let i = 0; i < boards; i += 1) {
+    const tone = 126 + Math.floor(rnd() * 26);
+    ctx.fillStyle = `rgb(${tone + 44},${Math.floor(tone * 0.53)},${Math.floor(tone * 0.33)})`;
+    ctx.fillRect(0, i * h, size, h);
+    for (let g = 0; g < 26; g += 1) {
+      ctx.strokeStyle = `rgba(70,32,14,${0.04 + rnd() * 0.09})`;
+      ctx.lineWidth = 0.6 + rnd();
+      const y = i * h + rnd() * h;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y + (rnd() - 0.5) * 3);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(24,10,4,0.72)';
+    ctx.fillRect(0, i * h, size, Math.max(2, h * 0.1));
+  }
+  return finish(canvas, repeat);
+}
+
 /** Polished marble with soft grey veins, for floors and the pooja platform. */
 export function marbleTexture(repeat: number): CanvasTexture {
   const size = 512;

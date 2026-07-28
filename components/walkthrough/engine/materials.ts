@@ -16,6 +16,7 @@ import {
   grassTexture,
   marbleTexture,
   pavingTexture,
+  slatTexture,
   stuccoTexture,
   tileTexture,
   woodTexture,
@@ -65,6 +66,17 @@ export class MaterialLibrary {
   readonly porcelain: MeshStandardMaterial;
   readonly blackScreen: MeshStandardMaterial;
   readonly brass: MeshStandardMaterial;
+
+  // Facade set, sampled from the reference photographs of the built house.
+  readonly facadeCream: MeshStandardMaterial; // main field wall
+  readonly facadeTan: MeshStandardMaterial; // darker accent panel
+  readonly facadeWhite: MeshStandardMaterial; // projecting frames and bands
+  readonly windowSurround: MeshStandardMaterial; // dark taupe box reveals
+  readonly slatWood: MeshStandardMaterial; // terracotta hood / louvre slats
+  readonly balconyCeiling: MeshStandardMaterial; // dark stained soffit
+  readonly gateWood: MeshStandardMaterial; // dark brown gate leaves
+  readonly concreteApron: MeshStandardMaterial; // grey cast driveway
+  readonly reveal: MeshStandardMaterial; // shadow line inside a groove
 
   constructor() {
     const track = <T extends Texture>(t: T): T => {
@@ -186,6 +198,46 @@ export class MaterialLibrary {
     this.brass = mat(
       new MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.9 }),
     );
+
+    // --- Facade set -----------------------------------------------------
+    // Sampled from the reference photographs: a warm cream field, a darker tan
+    // accent panel, near-white projecting frames, dark taupe window reveals,
+    // and terracotta slatted timber for the hoods and louvres.
+    // Deeper than they look on screen: under a strong sun with ACES tone
+    // mapping a light render reads almost white, so the base tones are pitched
+    // down to keep the cream/tan separation the photographs show.
+    const creamMap = track(stuccoTexture('#cdbf9f', 5));
+    const tanMap = track(stuccoTexture('#9d8a6d', 5));
+    const frameMap = track(stuccoTexture('#e2dbc9', 4));
+    const slatMap = track(slatTexture(1));
+    // The soffit is stained a deep chocolate, so it takes the plain wood grain
+    // rather than the terracotta slat map, which reads far too red at depth.
+    const soffitMap = track(woodTexture(3, false));
+    const apronMap = track(pavingTexture('#b4b1a9', 6));
+
+    this.facadeCream = mat(
+      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.94 }), creamMap),
+    );
+    this.facadeTan = mat(
+      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.94 }), tanMap),
+    );
+    this.facadeWhite = mat(
+      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 }), frameMap),
+    );
+    this.windowSurround = mat(new MeshStandardMaterial({ color: 0x6d6055, roughness: 0.8 }));
+    this.slatWood = mat(
+      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.62 }), slatMap),
+    );
+    this.balconyCeiling = mat(
+      withMap(new MeshStandardMaterial({ color: 0x51392a, roughness: 0.72 }), soffitMap),
+    );
+    this.gateWood = mat(
+      new MeshStandardMaterial({ color: 0x402c20, roughness: 0.55, metalness: 0.25 }),
+    );
+    this.concreteApron = mat(
+      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }), apronMap),
+    );
+    this.reveal = mat(new MeshStandardMaterial({ color: 0x8d8477, roughness: 1 }));
   }
 
   /** A tinted one-off wall-paint variant, tracked for disposal. */
