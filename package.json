@@ -25,7 +25,8 @@
     "docker:build": "./scripts/docker-build.sh",
     "docker:run": "./scripts/docker-run.sh",
     "rename": "./scripts/rename-project.sh",
-    "clean": "rm -rf .next coverage node_modules"
+    "clean": "rm -rf .next coverage node_modules",
+    "textures:fetch": "node scripts/fetch-textures.mjs"
   },
   "dependencies": {
     "lil-gui": "^0.21.0",
@@ -51,6 +52,7 @@
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.6",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"

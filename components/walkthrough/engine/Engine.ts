@@ -34,6 +34,7 @@ import { mergeStatic } from './merge';
 import { ENVELOPE, levelFloorY } from './plan';
 import { PostFx } from './postfx';
 import { Sky } from './sky';
+import { ScannedTextures } from './textureLoader';
 import { TIME_ORDER, type TimeOfDayId } from './timeOfDay';
 import type { Collider, DoorHandle, FloorSurface } from './types';
 import { Dust } from './vfx/dust';
@@ -71,6 +72,7 @@ export class WalkthroughEngine {
   private readonly doors: DoorSystem;
   private readonly postfx: PostFx;
   private readonly audio = new Soundscape();
+  private readonly scans = new ScannedTextures();
   private readonly dust: Dust;
   private readonly spawns = new Map<number, Vector3>();
   private readonly ambient: boolean;
@@ -150,6 +152,7 @@ export class WalkthroughEngine {
     const house = new HouseBuilder(this.materials).build();
     const furniture = furnishHouse(this.materials, house.placedRooms);
     const site = buildSite(this.materials);
+    this.applyScannedTextures();
     const batched = mergeStatic([house.group, furniture, site.group]);
     this.scene.add(batched.group);
     this.mergedDisposables = batched.disposables;
@@ -228,6 +231,29 @@ export class WalkthroughEngine {
       this.setCameraMode(this.reducedMotion ? 'street' : 'cinematic');
     }
     this.state.ready = true;
+  }
+
+  /**
+   * Swap the scanned CC0 material sets over the procedural ones.
+   *
+   * Repeats are chosen per surface in metres of real coverage: a render scan
+   * tiling every ~2.5 m keeps the grain believable at arm's length without
+   * visibly repeating across a three-storey wall.
+   */
+  private applyScannedTextures(): void {
+    const m = this.materials;
+    this.scans.apply(m.facadeCream, 'render', { repeat: 4, normalScale: 1.1, tint: 0xd9ccac });
+    this.scans.apply(m.facadeTan, 'render', { repeat: 4, normalScale: 1.1, tint: 0xb3a081 });
+    this.scans.apply(m.facadeWhite, 'render', { repeat: 3, normalScale: 0.7, tint: 0xf2ede2 });
+    this.scans.apply(m.boundaryWall, 'render', { repeat: 3, normalScale: 1.1, tint: 0xe6ddc9 });
+    this.scans.apply(m.teak, 'teak', { repeat: 1.4, normalScale: 1.3, tint: 0xd08f56 });
+    this.scans.apply(m.balconyCeiling, 'teak', { repeat: 2, normalScale: 1.2, tint: 0xa9714a });
+    this.scans.apply(m.pavingTile, 'paving', { repeat: 7, normalScale: 1.2, tint: 0xd6cdb8 });
+    this.scans.apply(m.concreteApron, 'concrete', { repeat: 6, normalScale: 1, tint: 0xc4c1b8 });
+    this.scans.apply(m.street, 'concrete', { repeat: 12, normalScale: 0.8, tint: 0x5c5c60 });
+    this.scans.apply(m.marbleFloor, 'marble', { repeat: 3, normalScale: 0.4, tint: 0xf2efe8 });
+    this.scans.apply(m.grass, 'grass', { repeat: 26, normalScale: 0.9, tint: 0x8fae74 });
+    this.scans.apply(m.parapet, 'concrete', { repeat: 4, normalScale: 0.9, tint: 0xd2cdc2 });
   }
 
   private buildTourPoints(
@@ -395,6 +421,7 @@ export class WalkthroughEngine {
     this.sky.dispose();
     this.dust.dispose();
     this.audio.dispose();
+    this.scans.dispose();
     for (const geo of this.mergedDisposables) geo.dispose();
     this.mergedDisposables = [];
     this.renderer.dispose();

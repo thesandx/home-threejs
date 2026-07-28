@@ -56,3 +56,6 @@ Thumbs.db
 
 # Vercel (unused here — this template deploys to Cloud Run)
 .vercel
+
+# Scratch space for scripts/fetch-textures.mjs
+.texture-cache/
