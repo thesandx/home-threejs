@@ -167,6 +167,9 @@ export class Lighting {
     // Sky + fog + exposure.
     sky.setGradient(this.liveTop, this.liveHorizon, this.liveBottom);
     sky.setSun(d, this.liveSunColor, this.target.id === 'night' ? 0.006 : 0.02);
+    // Cloud cover by mood: heavy when raining, almost none at night.
+    const cloud = p.id === 'rainy' ? 1.5 : p.id === 'night' ? 0.25 : 0.85;
+    sky.setCloudCover(cloud);
     scene.background = this.liveFog;
     this.fog.color.copy(this.liveFog);
     this.fog.density = this.liveFogD;

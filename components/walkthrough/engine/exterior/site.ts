@@ -11,7 +11,7 @@
 
 import { Group, Vector3 } from 'three';
 
-import { box, cylinder, sphere } from '../geometry';
+import { box, card, cylinder } from '../geometry';
 import type { MaterialLibrary } from '../materials';
 import { ENVELOPE } from '../plan';
 import type { Collider, DoorHandle, FloorSurface } from '../types';
@@ -257,19 +257,20 @@ function buildGarden(group: Group, m: MaterialLibrary, ctx: GardenCtx): void {
   const rnd = rand(2026);
 
   /**
-   * A tree built from many small, jittered leaf clusters rather than two or
-   * three big spheres. The silhouette is what sells a tree at distance, and a
-   * lumpy irregular canopy reads as foliage where a smooth sphere reads as CG.
+   * A tree built from crossed alpha-cut foliage cards rather than spheres.
+   * Real canopies have a broken, see-through silhouette; a smooth sphere never
+   * does, and it is the loudest CG tell in an exterior shot. Several cards are
+   * scattered around the crown at varied angles so the tree reads from any
+   * viewpoint without ever showing an obviously flat plane.
    */
   const tree = (x: number, z: number, h: number): void => {
-    const lean = (rnd() - 0.5) * 0.15;
-    group.add(cylinder(0.1 + rnd() * 0.05, h, m.plantTrunk, x, h / 2, z));
-    // A few structural limbs.
+    group.add(cylinder(0.09 + rnd() * 0.04, h, m.plantTrunk, x, h / 2, z));
+    // A few structural limbs reaching into the crown.
     for (let b = 0; b < 3; b += 1) {
       const a = rnd() * Math.PI * 2;
       group.add(
         cylinder(
-          0.045,
+          0.04,
           h * 0.4,
           m.plantTrunk,
           x + Math.cos(a) * h * 0.1,
@@ -278,19 +279,14 @@ function buildGarden(group: Group, m: MaterialLibrary, ctx: GardenCtx): void {
         ),
       );
     }
-    const clusters = 16;
-    for (let i = 0; i < clusters; i += 1) {
+    const cards = 9;
+    for (let i = 0; i < cards; i += 1) {
       const a = rnd() * Math.PI * 2;
-      const r = h * (0.12 + rnd() * 0.34);
-      const cy = h * (0.86 + rnd() * 0.42);
+      const r = h * (0.06 + rnd() * 0.26);
+      const cy = h * (0.82 + rnd() * 0.42);
+      const s = h * (0.5 + rnd() * 0.34);
       group.add(
-        sphere(
-          h * (0.11 + rnd() * 0.1),
-          m.plantLeaf,
-          x + Math.cos(a) * r + lean * h,
-          cy,
-          z + Math.sin(a) * r,
-        ),
+        card(s, s, m.leafCard, x + Math.cos(a) * r, cy, z + Math.sin(a) * r, rnd() * Math.PI),
       );
     }
   };
@@ -305,15 +301,17 @@ function buildGarden(group: Group, m: MaterialLibrary, ctx: GardenCtx): void {
 
   // Shrub rows along the front boundary planters, size- and position-jittered.
   const shrub = (x: number, z: number): void => {
-    const s = 0.24 + rnd() * 0.16;
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 3; i += 1) {
+      const s = 0.6 + rnd() * 0.45;
       group.add(
-        sphere(
-          s * (0.6 + rnd() * 0.5),
-          m.plantLeaf,
-          x + (rnd() - 0.5) * 0.3,
-          0.22 + rnd() * 0.3,
+        card(
+          s,
+          s,
+          m.leafCard,
+          x + (rnd() - 0.5) * 0.35,
+          0.3 + rnd() * 0.22,
           z + (rnd() - 0.5) * 0.3,
+          rnd() * Math.PI,
         ),
       );
     }

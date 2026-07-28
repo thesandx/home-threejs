@@ -65,7 +65,7 @@ export const TIME_PRESETS: Record<TimeOfDayId, TimeOfDayPreset> = {
     ambientIntensity: 0.22,
     fogColor: new Color(0xd6e4ef),
     fogDensity: 0.006,
-    exposure: 0.9,
+    exposure: 0.82,
     interiorLights: false,
   },
   afternoon: {
@@ -84,7 +84,7 @@ export const TIME_PRESETS: Record<TimeOfDayId, TimeOfDayPreset> = {
     ambientIntensity: 0.24,
     fogColor: new Color(0xd4e6f4),
     fogDensity: 0.004,
-    exposure: 0.88,
+    exposure: 0.78,
     interiorLights: false,
   },
   golden: {

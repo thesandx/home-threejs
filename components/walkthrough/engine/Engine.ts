@@ -131,7 +131,10 @@ export class WalkthroughEngine {
     this.renderer.outputColorSpace = SRGBColorSpace;
 
     const { clientWidth: w, clientHeight: h } = canvas;
-    this.camera = new PerspectiveCamera(62, w / Math.max(h, 1), 0.1, 1200);
+    // A tight near/far ratio matters here: GTAO reads the depth buffer, and a
+    // 0.1–1200 range leaves so little precision that the occlusion term turns
+    // to noise. 0.15–350 still clears the sky dome and the whole street.
+    this.camera = new PerspectiveCamera(62, w / Math.max(h, 1), 0.15, 350);
 
     this.scene.environment = createEnvironmentMap(this.renderer);
     // Enough image-based fill that the deep balcony loggias and the stilt porch

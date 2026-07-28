@@ -13,9 +13,12 @@
 import { type CanvasTexture, Color, DoubleSide, MeshStandardMaterial, type Texture } from 'three';
 
 import {
+  foliageTexture,
   grassTexture,
   marbleTexture,
+  normalFromCanvas,
   pavingTexture,
+  roughnessFromCanvas,
   slatTexture,
   stuccoTexture,
   tileTexture,
@@ -83,6 +86,7 @@ export class MaterialLibrary {
   readonly downlight: MeshStandardMaterial; // lit recessed fitting
   readonly curtain: MeshStandardMaterial; // sheer white curtain behind glass
   readonly pavingTile: MeshStandardMaterial; // beige large-format forecourt
+  readonly leafCard: MeshStandardMaterial; // alpha-cut foliage sprite
 
   constructor() {
     const track = <T extends Texture>(t: T): T => {
@@ -111,6 +115,28 @@ export class MaterialLibrary {
       return m;
     };
 
+    /**
+     * Full PBR set: albedo plus a height-derived normal map and a roughness
+     * map. Reserved for the surfaces the camera actually gets close to — the
+     * derivation is an O(n²) pass per texture, so it is not worth spending on
+     * something only ever seen at distance.
+     */
+    const withPBR = (
+      m: MeshStandardMaterial,
+      map: CanvasTexture,
+      normalStrength = 2.2,
+      roughMin = 0.55,
+      roughMax = 1,
+    ): MeshStandardMaterial => {
+      m.map = map;
+      const canvas = map.image as HTMLCanvasElement;
+      const repeat = map.repeat.x;
+      m.normalMap = track(normalFromCanvas(canvas, repeat, normalStrength));
+      m.normalScale.set(1, 1);
+      m.roughnessMap = track(roughnessFromCanvas(canvas, repeat, roughMin, roughMax));
+      return m;
+    };
+
     this.stucco = mat(
       withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), stuccoMap),
     );
@@ -128,9 +154,12 @@ export class MaterialLibrary {
       withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }), woodSoffit),
     );
     this.marbleFloor = mat(
-      withMap(
+      withPBR(
         new MeshStandardMaterial({ color: 0xffffff, roughness: 0.18, metalness: 0.04 }),
         marbleMap,
+        0.6,
+        0.16,
+        0.42,
       ),
     );
     this.tileFloor = mat(
@@ -221,14 +250,16 @@ export class MaterialLibrary {
     const soffitMap = track(woodTexture(3, false));
     const apronMap = track(pavingTexture('#b4b1a9', 6));
 
+    // The render walls carry a strong normal map: a sand-float finish has real
+    // relief, and without it the facade reads as painted card at any distance.
     this.facadeCream = mat(
-      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.94 }), creamMap),
+      withPBR(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.94 }), creamMap, 3.2, 0.9),
     );
     this.facadeTan = mat(
-      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.94 }), tanMap),
+      withPBR(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.94 }), tanMap, 3.2, 0.9),
     );
     this.facadeWhite = mat(
-      withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 }), frameMap),
+      withPBR(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 }), frameMap, 2.0, 0.85),
     );
     this.windowSurround = mat(new MeshStandardMaterial({ color: 0x6d6055, roughness: 0.8 }));
     this.slatWood = mat(
@@ -245,13 +276,35 @@ export class MaterialLibrary {
     );
     this.reveal = mat(new MeshStandardMaterial({ color: 0x8d8477, roughness: 1 }));
 
+    // Foliage cards. `alphaTest` cuts the leaves out without needing the
+    // transparency sort, so the cards can stay in the batched static geometry
+    // and still render correctly against each other from any angle.
+    this.leafCard = mat(
+      new MeshStandardMaterial({
+        map: track(foliageTexture()),
+        transparent: false,
+        alphaTest: 0.45,
+        side: DoubleSide,
+        roughness: 0.85,
+        color: 0xffffff,
+      }),
+    );
+
     // The elevation's timber: a rich reddish teak used for the stair-tower
     // cladding, the balcony louvres and the plank soffits.
     // Toned well down from the raw slat map, which is far too saturated a
     // terracotta on its own — the reference timber is a warm mid brown.
     const teakMap = track(slatTexture(1, 6));
+    // Deep normal relief so the shadow gaps between boards are real geometry to
+    // the shader, not just dark pixels.
     this.teak = mat(
-      withMap(new MeshStandardMaterial({ color: 0x7a5236, roughness: 0.55 }), teakMap),
+      withPBR(
+        new MeshStandardMaterial({ color: 0x7a5236, roughness: 0.55 }),
+        teakMap,
+        4.0,
+        0.55,
+        0.9,
+      ),
     );
     this.darkGlazing = mat(
       new MeshStandardMaterial({ color: 0x191d23, roughness: 0.1, metalness: 0.55 }),
@@ -272,9 +325,11 @@ export class MaterialLibrary {
       new MeshStandardMaterial({ color: 0xf4f1ea, roughness: 1, emissive: 0x2a2418 }),
     );
     this.pavingTile = mat(
-      withMap(
+      withPBR(
         new MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 }),
-        track(tileTexture('#ddd2bd', '#bdb29d', 7)),
+        track(tileTexture('#c3b79f', '#a2967f', 7)),
+        2.6,
+        0.82,
       ),
     );
   }

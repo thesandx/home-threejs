@@ -12,6 +12,7 @@
 
 import {
   CanvasTexture,
+  ClampToEdgeWrapping,
   type ColorSpace,
   RepeatWrapping,
   SRGBColorSpace,
@@ -41,6 +42,156 @@ function finish(
   texture.colorSpace = colorSpace;
   texture.anisotropy = 8;
   return texture;
+}
+
+/**
+ * Derive a tangent-space normal map from an albedo texture's luminance.
+ *
+ * Luminance stands in for height — for render, plaster, timber grain and grout
+ * lines that holds well, because on all of them the dark pixels *are* the
+ * recesses. A Sobel operator gives the surface gradient, which is packed into
+ * RGB as the usual (x, y, z) normal. `strength` scales the relief.
+ *
+ * This is what lifts the materials out of looking painted-on: without a normal
+ * map a wall is perfectly flat no matter how detailed its colour is.
+ */
+export function normalFromCanvas(
+  source: HTMLCanvasElement,
+  repeat: number,
+  strength = 2.2,
+): CanvasTexture {
+  const size = source.width;
+  const src = source.getContext('2d');
+  const { canvas, ctx } = createCanvas(size);
+  if (!src) return finish(canvas, repeat, NO_COLOR_SPACE);
+
+  const data = src.getImageData(0, 0, size, size).data;
+  const out = ctx.createImageData(size, size);
+  const lum = (x: number, y: number): number => {
+    // Wrap so the normal map tiles exactly like its albedo.
+    const xi = ((x % size) + size) % size;
+    const yi = ((y % size) + size) % size;
+    const i = (yi * size + xi) * 4;
+    return (0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!) / 255;
+  };
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      // Sobel gradients.
+      const dx =
+        lum(x - 1, y - 1) +
+        2 * lum(x - 1, y) +
+        lum(x - 1, y + 1) -
+        (lum(x + 1, y - 1) + 2 * lum(x + 1, y) + lum(x + 1, y + 1));
+      const dy =
+        lum(x - 1, y - 1) +
+        2 * lum(x, y - 1) +
+        lum(x + 1, y - 1) -
+        (lum(x - 1, y + 1) + 2 * lum(x, y + 1) + lum(x + 1, y + 1));
+
+      let nx = dx * strength;
+      let ny = dy * strength;
+      const nz = 1;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      nx /= len;
+      ny /= len;
+
+      const i = (y * size + x) * 4;
+      out.data[i] = Math.round((nx * 0.5 + 0.5) * 255);
+      out.data[i + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+      out.data[i + 2] = Math.round((nz / len) * 0.5 * 255 + 127);
+      out.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  // Normal maps are data, never colour — they must not be sRGB-decoded.
+  return finish(canvas, repeat, NO_COLOR_SPACE);
+}
+
+/**
+ * Derive a roughness map from an albedo texture: darker pixels (recesses,
+ * grout, grain) read rougher, lighter ones smoother. Wired into the material's
+ * green channel by three.js convention.
+ */
+export function roughnessFromCanvas(
+  source: HTMLCanvasElement,
+  repeat: number,
+  min = 0.55,
+  max = 1,
+): CanvasTexture {
+  const size = source.width;
+  const src = source.getContext('2d');
+  const { canvas, ctx } = createCanvas(size);
+  if (!src) return finish(canvas, repeat, NO_COLOR_SPACE);
+
+  const data = src.getImageData(0, 0, size, size).data;
+  const out = ctx.createImageData(size, size);
+  for (let i = 0; i < data.length; i += 4) {
+    const l = (0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!) / 255;
+    const r = Math.round((max - (max - min) * l) * 255);
+    out.data[i] = r;
+    out.data[i + 1] = r;
+    out.data[i + 2] = r;
+    out.data[i + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return finish(canvas, repeat, NO_COLOR_SPACE);
+}
+
+/** Linear (non-colour) space marker for data textures. */
+const NO_COLOR_SPACE = '' as ColorSpace;
+
+/**
+ * A foliage card: a cluster of individual leaves drawn with a transparent
+ * background, for crossed-plane vegetation.
+ *
+ * Sphere-cluster canopies are the loudest "this is CG" signal in an exterior
+ * shot, because real foliage has a broken, see-through silhouette. Alpha cards
+ * give that silhouette for two triangles apiece.
+ */
+export function foliageTexture(): CanvasTexture {
+  const size = 256;
+  const { canvas, ctx } = createCanvas(size);
+  ctx.clearRect(0, 0, size, size);
+  const rnd = mulberry32(64);
+
+  const leaf = (cx: number, cy: number, len: number, angle: number, shade: number): void => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const g = ctx.createLinearGradient(0, -len, 0, len);
+    const dark = `rgb(${Math.floor(28 + shade * 0.4)},${Math.floor(70 + shade)},${Math.floor(30 + shade * 0.5)})`;
+    const light = `rgb(${Math.floor(58 + shade * 0.5)},${Math.floor(112 + shade)},${Math.floor(46 + shade * 0.6)})`;
+    g.addColorStop(0, dark);
+    g.addColorStop(0.5, light);
+    g.addColorStop(1, dark);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, len * 0.34, len, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Midrib.
+    ctx.strokeStyle = 'rgba(20,50,22,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -len);
+    ctx.lineTo(0, len);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // A rough radial spray of leaves, denser toward the middle.
+  for (let i = 0; i < 130; i += 1) {
+    const a = rnd() * Math.PI * 2;
+    const r = Math.pow(rnd(), 0.65) * size * 0.46;
+    const cx = size / 2 + Math.cos(a) * r;
+    const cy = size / 2 + Math.sin(a) * r * 0.9;
+    leaf(cx, cy, 12 + rnd() * 16, rnd() * Math.PI, rnd() * 60);
+  }
+  const tex = finish(canvas, 1);
+  // A card is a single sprite, never a tile.
+  tex.wrapS = ClampToEdgeWrapping;
+  tex.wrapT = ClampToEdgeWrapping;
+  return tex;
 }
 
 /** Deterministic value noise so textures look identical between reloads. */

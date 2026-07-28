@@ -14,6 +14,7 @@ import {
   type Material,
   Mesh,
   type Object3D,
+  PlaneGeometry,
   SphereGeometry,
 } from 'three';
 
@@ -21,6 +22,7 @@ import {
 const UNIT_BOX = new BoxGeometry(1, 1, 1);
 const UNIT_CYL = new CylinderGeometry(1, 1, 1, 20);
 const UNIT_SPHERE = new SphereGeometry(1, 18, 12);
+const UNIT_PLANE = new PlaneGeometry(1, 1);
 
 export interface BoxOptions {
   cast?: boolean;
@@ -78,6 +80,30 @@ export function sphere(
   mesh.position.set(x, y, z);
   mesh.castShadow = opts.cast ?? true;
   mesh.receiveShadow = opts.receive ?? true;
+  return mesh;
+}
+
+/**
+ * A vertical quad, centred at (x, y, z) and rotated about Y. Used for the
+ * alpha-card foliage: two or three crossed quads read as a broken, see-through
+ * canopy, where a sphere reads as a solid blob.
+ */
+export function card(
+  w: number,
+  h: number,
+  material: Material,
+  x: number,
+  y: number,
+  z: number,
+  rotY: number,
+  opts: BoxOptions = {},
+): Mesh {
+  const mesh = new Mesh(UNIT_PLANE, material);
+  mesh.scale.set(w, h, 1);
+  mesh.position.set(x, y, z);
+  mesh.rotation.y = rotY;
+  mesh.castShadow = opts.cast ?? true;
+  mesh.receiveShadow = opts.receive ?? false;
   return mesh;
 }
 
