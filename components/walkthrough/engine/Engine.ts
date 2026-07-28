@@ -23,7 +23,7 @@ import {
 import { Soundscape } from './audio/soundscape';
 import { CameraDirector, type CameraMode } from './controls/cameras';
 import { FirstPersonControls } from './controls/firstPerson';
-import { createEnvironmentMap } from './environment';
+import { SkyEnvironment } from './environment';
 import { buildSite } from './exterior/site';
 import { furnishHouse } from './furniture';
 import { HouseBuilder } from './houseBuilder';
@@ -65,6 +65,7 @@ export class WalkthroughEngine {
   private readonly camera: PerspectiveCamera;
   private readonly clock = new Clock();
   private readonly sky = new Sky();
+  private readonly skyEnv: SkyEnvironment;
   private readonly lighting: Lighting;
   private readonly materials = new MaterialLibrary();
   private readonly fp: FirstPersonControls;
@@ -138,10 +139,11 @@ export class WalkthroughEngine {
     // to noise. 0.15–350 still clears the sky dome and the whole street.
     this.camera = new PerspectiveCamera(62, w / Math.max(h, 1), 0.15, 350);
 
-    this.scene.environment = createEnvironmentMap(this.renderer);
-    // Enough image-based fill that the deep balcony loggias and the stilt porch
-    // read as shaded daylight rather than black holes.
-    this.scene.environmentIntensity = 0.42;
+    // Image-based lighting is generated from the same sky the camera sees, and
+    // regenerated when the time of day changes, so indirect fill always carries
+    // the colour of the sky overhead. `Lighting` owns the refresh schedule and
+    // sets `scene.environment` / `scene.environmentIntensity` itself.
+    this.skyEnv = new SkyEnvironment(this.renderer);
     this.scene.add(this.sky.mesh);
 
     this.lighting = new Lighting(this.scene);
@@ -419,6 +421,7 @@ export class WalkthroughEngine {
     this.lighting.dispose();
     this.materials.dispose();
     this.sky.dispose();
+    this.skyEnv.dispose();
     this.dust.dispose();
     this.audio.dispose();
     this.scans.dispose();
@@ -444,11 +447,15 @@ export class WalkthroughEngine {
     this.lighting.update(
       dt,
       this.sky,
+      this.skyEnv,
       this.renderer,
       this.scene,
       this.houseCenter,
       this.camera.position,
     );
+    // The grade eases with the rest of the preset, so it is pushed every frame
+    // rather than only on a time switch. Three uniform writes; no allocation.
+    this.postfx.setGrade(this.lighting.grade);
 
     // Renders the static shadow map only on frames where a change asked for it
     // (autoUpdate is off); the renderer clears needsUpdate itself afterwards.
