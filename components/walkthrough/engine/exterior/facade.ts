@@ -1,22 +1,20 @@
 /**
- * The front and side elevations, modelled from the reference photographs of the
- * built house ("Sri Sai Dham", Manikonda).
+ * The front elevation, modelled directly from the architectural reference
+ * render. Proportions below were measured off that image and expressed as
+ * fractions of the frontage width, so the composition holds if the plan changes.
  *
- * The elevation reads as a few strong moves, and this module builds them in the
- * order they stack visually:
+ * Reading the elevation left to right:
  *
- *  1. A stilt porch at ground level — round columns carrying the balcony block
- *     above, with an exposed-joist soffit and the gold name band on its beam.
- *  2. Deep recessed balconies on the upper floors, each wrapped in a thick
- *     near-white L-frame that projects proud of the wall.
- *  3. Dark stained timber balcony soffits with recessed downlights.
- *  4. Full-height terracotta louvre fins closing one end of each balcony.
- *  5. Projecting dark-taupe box surrounds around every window on the solid
- *     bay — the detail that gives the facade its depth.
- *  6. Terracotta slatted hoods stacked up the side wall over its windows.
- *  7. Thin reveal grooves scored into the render, and a dark fascia at the roof.
+ *   | white   | stair tower:      | thick white picture-frame  | cream bay:  | white |
+ *   | pilaster| teak panels       | wrapping TWO stacked       | two charcoal| fin   |
+ *   |         | alternating with  | balconies (teak plank      | box-framed  | with  |
+ *   |         | near-black glazing| soffit + downlights +      | windows     | three |
+ *   |         |                   | pendant, teak louvres,     |             |grooves|
+ *   |         |                   | glass rail + steel toprail)|             |       |
  *
- * Everything here is static and material-batched by `mergeStatic`, and is tagged
+ * Under the frame sits the entrance porch: a lit teak soffit, a timber door and
+ * the column that carries the balcony block. A charcoal fascia caps every roof
+ * edge. Everything is static, batched by `mergeStatic`, and tagged
  * `exteriorWall` so the "hide walls" control peels it away with the shell.
  */
 
@@ -26,15 +24,21 @@ import { box, cylinder } from '../geometry';
 import type { MaterialLibrary } from '../materials';
 import { ENVELOPE } from '../plan';
 
-/** Where the balcony void sits across the frontage, as a fraction of width. */
-const BALCONY_X0 = 0.06;
-const BALCONY_X1 = 0.6;
-/** The solid bay to the right of the balcony carries the box windows. */
-const SOLID_X0 = 0.63;
+// --- Bay divisions, as fractions of the frontage width ---------------------
+// Measured off the reference elevation, then mirrored: the street camera looks
+// along +z, which puts +x on the left of frame, so the fractions are flipped to
+// keep the tower on the viewer's left and the fin on the right, as drawn.
+const PILASTER_X0 = 0.928; // white pilaster at the tower's outer edge
+const TOWER_X0 = 0.795; // stair tower with the teak cladding
+const TOWER_X1 = 0.928;
+const FRAME_X0 = 0.301; // outer edges of the white picture-frame
+const FRAME_X1 = 0.771;
+const BAY_X0 = 0.096; // cream bay carrying the box windows
+const BAY_X1 = 0.301;
+const FIN_X1 = 0.096; // white grooved fin at the far edge
 
-const FRAME_T = 0.34; // thickness of the white L-frames
-const HOOD_PROJECT = 0.42; // how far the slat hoods stand off the wall
-const SURROUND_PROJECT = 0.26; // how far a window box surround projects
+const FRAME_BAND = 0.58; // width of the white frame's bands
+const FRAME_PROJECT = 0.95; // how far the frame stands proud of the balcony
 
 function tag(o: Object3D): Object3D {
   o.userData.exteriorWall = true;
@@ -48,424 +52,369 @@ export function buildFacadeDetail(m: MaterialLibrary): Group {
   const D = ENVELOPE.depth;
   const H = ENVELOPE.levelHeight;
   const levels = ENVELOPE.levels;
+  const total = levels * H;
   const frontZ = -ENVELOPE.frontBalcony; // outer face of the balcony block
-  const wallZ = 0; // main front wall
+  const add = (o: Object3D): void => void g.add(tag(o));
 
-  const add = (o: Object3D): void => {
-    g.add(tag(o));
-  };
-
-  const bx0 = W * BALCONY_X0;
-  const bx1 = W * BALCONY_X1;
-  const sx0 = W * SOLID_X0;
-
-  buildFieldWalls(add, m, W, sx0, levels, H, wallZ, frontZ);
-  buildPorch(add, m, bx0, bx1, H, frontZ, wallZ);
-  buildBalconyBlock(add, m, bx0, bx1, levels, H, frontZ, wallZ);
-  buildBoxWindows(add, m, sx0, W, levels, H, wallZ);
-  buildSlatHoods(add, m, W, D, levels, H);
-  buildRevealsAndFascia(add, m, W, D, levels, H);
-  g.add(buildBalconyCap(m));
+  buildFieldAndPilasters(add, m, W, total, H);
+  buildStairTower(add, m, W, total, H);
+  buildBalconyFrame(add, m, W, H, levels, frontZ);
+  buildBoxWindows(add, m, W, levels, H);
+  buildGroovedFin(add, m, W, total);
+  buildPorch(add, m, W, H, frontZ);
+  buildFascia(add, m, W, D, total);
+  buildSideDetail(add, m, W, D, levels, H);
 
   return g;
 }
 
-/**
- * The cream field wall of the solid bay, plus the darker tan accent panel and
- * the pale corner pilaster seen on the right of the elevation.
- */
-function buildFieldWalls(
+/** The cream render field plus the plain white pilaster at the left edge. */
+function buildFieldAndPilasters(
   add: (o: Object3D) => void,
   m: MaterialLibrary,
   W: number,
-  sx0: number,
-  levels: number,
+  total: number,
   H: number,
-  wallZ: number,
-  frontZ: number,
 ): void {
-  const total = levels * H;
-  const solidW = W - sx0;
+  // Render field across the whole frontage, held just proud of the structure.
+  add(box(W, total, 0.06, m.facadeCream, W / 2, total / 2, -0.03));
 
-  // Cream field, held just proud of the structural wall so it reads as render.
-  add(box(solidW, total, 0.06, m.facadeCream, sx0 + solidW / 2, total / 2, wallZ - 0.03));
+  // White pilaster beside the tower, full height and stepping above the roof.
+  const pw = W * (1 - PILASTER_X0);
+  add(box(pw, total + 0.55, 0.42, m.facadeWhite, W - pw / 2, (total + 0.55) / 2, -0.16));
 
-  // Darker tan accent panel over the right third, from first floor up.
-  const tanW = solidW * 0.42;
-  add(
-    box(
-      tanW,
-      total - H * 0.6,
-      0.08,
-      m.facadeTan,
-      W - tanW / 2 - 0.35,
-      H * 0.6 + (total - H * 0.6) / 2,
-      wallZ - 0.05,
-    ),
-  );
-
-  // Pale corner pilaster running the full height at the right edge.
-  add(box(0.34, total + 0.5, 0.34, m.facadeWhite, W - 0.17, (total + 0.5) / 2, wallZ - 0.12));
-
-  // The tall slender fin that separates the balcony block from the solid bay.
-  add(box(0.26, total + 0.4, 0.5, m.facadeWhite, sx0 - 0.16, (total + 0.4) / 2, frontZ + 0.9));
+  // The cream bay behind the box windows is a slightly warmer, rougher render.
+  const bayW = W * (BAY_X1 - BAY_X0);
+  add(box(bayW, total, 0.05, m.facadeTan, W * BAY_X0 + bayW / 2, total / 2, -0.08));
+  void H;
 }
 
 /**
- * Ground-level stilt porch: round columns on the balcony line, a beam with the
- * house name, and an exposed-joist soffit under the balcony above.
+ * The stair tower: teak-clad panels alternating up the bay with tall panes of
+ * near-black glazing, exactly as the reference stacks them.
  */
-function buildPorch(
+function buildStairTower(
   add: (o: Object3D) => void,
   m: MaterialLibrary,
-  bx0: number,
-  bx1: number,
+  W: number,
+  total: number,
   H: number,
-  frontZ: number,
-  wallZ: number,
 ): void {
-  const depth = wallZ - frontZ;
-  const width = bx1 - bx0;
+  const x0 = W * TOWER_X0;
+  const x1 = W * TOWER_X1;
+  const bw = x1 - x0;
+  const cx = (x0 + x1) / 2;
 
-  // Round columns carrying the block above.
-  for (const cx of [bx0 + 0.35, bx1 - 0.35]) {
-    add(cylinder(0.17, H - 0.45, m.facadeWhite, cx, (H - 0.45) / 2, frontZ + 0.35));
-    add(box(0.5, 0.14, 0.5, m.facadeWhite, cx, 0.07, frontZ + 0.35)); // base plinth
+  // Recessed dark backing the whole height, so gaps between panels read dark.
+  add(box(bw, total, 0.05, m.darkGlazing, cx, total / 2, 0.01));
+
+  // Alternate a clad panel and a glazed panel every half-storey.
+  const bandH = H / 2;
+  const bands = Math.floor(total / bandH);
+  for (let i = 0; i < bands; i += 1) {
+    const y0 = i * bandH;
+    if (i % 2 === 0) {
+      // Teak panel, projecting proud of the glazing line.
+      add(box(bw * 0.86, bandH * 0.72, 0.16, m.teak, cx, y0 + bandH * 0.5, -0.11));
+    } else {
+      // Glazed slot with a slim charcoal frame.
+      add(box(bw * 0.78, bandH * 0.78, 0.03, m.darkGlazing, cx, y0 + bandH * 0.5, -0.05));
+      add(box(bw * 0.82, 0.05, 0.07, m.charcoal, cx, y0 + bandH * 0.11, -0.06));
+      add(box(bw * 0.82, 0.05, 0.07, m.charcoal, cx, y0 + bandH * 0.89, -0.06));
+    }
   }
-
-  // Beam across the porch head — the band that carries the gold lettering.
-  add(box(width + 0.5, 0.62, 0.42, m.facadeWhite, (bx0 + bx1) / 2, H - 0.31, frontZ + 0.2));
-
-  // Gold name plate, proud of the beam.
-  add(box(width * 0.42, 0.2, 0.04, m.brass, (bx0 + bx1) / 2, H - 0.3, frontZ + 0.42));
-
-  // Exposed joists under the balcony slab, running front to back.
-  const joists = Math.max(6, Math.floor(width / 0.55));
-  for (let i = 0; i < joists; i += 1) {
-    const jx = bx0 + 0.3 + (i * (width - 0.6)) / (joists - 1);
-    add(box(0.12, 0.22, depth - 0.5, m.balconyCeiling, jx, H - 0.72, frontZ + depth / 2 + 0.2));
-  }
-  // Soffit plate the joists sit against.
-  add(
-    box(
-      width,
-      0.1,
-      depth - 0.3,
-      m.facadeWhite,
-      (bx0 + bx1) / 2,
-      H - 0.58,
-      frontZ + depth / 2 + 0.1,
-    ),
-  );
+  // Slim white reveals framing the tower on both sides.
+  add(box(0.1, total, 0.2, m.facadeWhite, x0 - 0.05, total / 2, -0.09));
+  add(box(0.1, total, 0.2, m.facadeWhite, x1 + 0.05, total / 2, -0.09));
 }
 
 /**
- * The upper balconies: a thick white L-frame wrapping each opening, a dark
- * timber soffit with downlights, and terracotta louvre fins at one end.
+ * The white picture-frame and the two balconies inside it.
+ *
+ * The frame is a projecting rectangle outline — two verticals plus a top,
+ * middle and bottom band — and each balcony behind it gets a teak plank soffit
+ * with three downlights, a pendant lamp, a glass balustrade with a steel top
+ * rail, a sliding door with sheer curtains, and teak louvres closing its left.
  */
-function buildBalconyBlock(
+function buildBalconyFrame(
   add: (o: Object3D) => void,
   m: MaterialLibrary,
-  bx0: number,
-  bx1: number,
-  levels: number,
+  W: number,
   H: number,
+  levels: number,
   frontZ: number,
-  wallZ: number,
 ): void {
-  const width = bx1 - bx0;
-  const depth = wallZ - frontZ;
+  const x0 = W * FRAME_X0;
+  const x1 = W * FRAME_X1;
+  const width = x1 - x0;
+  const cx = (x0 + x1) / 2;
+  // The frame sits forward of the balcony edge so it reads as a picture frame
+  // standing proud of the void, which is the elevation's dominant move.
+  const zc = frontZ - FRAME_PROJECT / 2 + 0.25;
+
+  const bottomY = H - 0.55; // underside band, below the first balcony
+  const topY = levels * H - 0.2; // head band, just under the roof
+
+  // --- Frame bands ---
+  add(box(width, FRAME_BAND, FRAME_PROJECT, m.facadeWhite, cx, topY, zc)); // head
+  add(box(width, FRAME_BAND, FRAME_PROJECT, m.facadeWhite, cx, bottomY, zc)); // base
+  add(box(width, FRAME_BAND * 0.8, FRAME_PROJECT, m.facadeWhite, cx, 2 * H - 0.28, zc)); // mid
+  for (const jx of [x0 + FRAME_BAND / 2, x1 - FRAME_BAND / 2]) {
+    add(
+      box(FRAME_BAND, topY - bottomY, FRAME_PROJECT, m.facadeWhite, jx, (topY + bottomY) / 2, zc),
+    );
+  }
+
+  // --- One balcony per upper level ---
+  const innerX0 = x0 + FRAME_BAND;
+  const innerX1 = x1 - FRAME_BAND;
+  const innerW = innerX1 - innerX0;
+  const innerCx = (innerX0 + innerX1) / 2;
+  const depth = -frontZ;
 
   for (let level = 1; level < levels; level += 1) {
-    const y0 = level * H;
-    const head = y0 + H - 0.5;
+    const floorY = level * H;
+    const soffitY = floorY + H - 0.62;
 
-    // --- The projecting white L-frame around the opening ---
-    // Head band.
+    // Teak plank soffit.
     add(
-      box(
-        width + FRAME_T * 2,
-        FRAME_T,
-        depth * 0.55,
-        m.facadeWhite,
-        (bx0 + bx1) / 2,
-        head + FRAME_T / 2,
-        frontZ + depth * 0.2,
-      ),
+      box(innerW, 0.1, depth - 0.3, m.teak, innerCx, soffitY, frontZ + depth / 2 + 0.15, {
+        cast: false,
+      }),
     );
-    // Sill band (the balcony's front edge).
+    // Three recessed downlights, as drawn.
+    for (let i = 0; i < 3; i += 1) {
+      const lx = innerX0 + (innerW * (i + 0.5)) / 3;
+      add(
+        cylinder(0.07, 0.03, m.downlight, lx, soffitY - 0.06, frontZ + depth * 0.55, {
+          cast: false,
+        }),
+      );
+    }
+    // Pendant lamp on a slim drop.
     add(
-      box(
-        width + FRAME_T * 2,
-        FRAME_T * 0.9,
-        depth * 0.55,
-        m.facadeWhite,
-        (bx0 + bx1) / 2,
-        y0 - 0.05,
-        frontZ + depth * 0.2,
-      ),
+      cylinder(0.012, 0.5, m.charcoal, innerCx, soffitY - 0.3, frontZ + depth * 0.45, {
+        cast: false,
+      }),
     );
-    // Side jambs.
-    for (const jx of [bx0 - FRAME_T / 2, bx1 + FRAME_T / 2]) {
+    add(
+      cylinder(0.08, 0.14, m.charcoal, innerCx, soffitY - 0.62, frontZ + depth * 0.45, {
+        cast: false,
+      }),
+    );
+    add(
+      cylinder(0.05, 0.07, m.downlight, innerCx, soffitY - 0.66, frontZ + depth * 0.45, {
+        cast: false,
+      }),
+    );
+
+    // Sliding door with a charcoal frame and sheer curtains behind.
+    const doorW = innerW * 0.55;
+    const doorH = 2.15;
+    add(box(doorW, doorH, 0.04, m.darkGlazing, innerCx, floorY + doorH / 2, -0.02));
+    add(box(doorW * 0.92, doorH * 0.9, 0.02, m.curtain, innerCx, floorY + doorH / 2, 0.01));
+    add(box(doorW + 0.12, 0.09, 0.1, m.charcoal, innerCx, floorY + doorH, -0.03));
+    add(box(0.09, doorH, 0.1, m.charcoal, innerCx - doorW / 2, floorY + doorH / 2, -0.03));
+    add(box(0.09, doorH, 0.1, m.charcoal, innerCx + doorW / 2, floorY + doorH / 2, -0.03));
+    add(box(0.06, doorH, 0.08, m.charcoal, innerCx, floorY + doorH / 2, -0.04));
+
+    // Glass balustrade with a steel top rail and a lower rail.
+    const railH = 1.06;
+    add(
+      box(innerW, railH - 0.1, 0.02, m.glassRail, innerCx, floorY + railH / 2, frontZ + 0.16, {
+        cast: false,
+      }),
+    );
+    add(
+      box(innerW + 0.06, 0.05, 0.05, m.steel, innerCx, floorY + railH, frontZ + 0.16, {
+        cast: false,
+      }),
+    );
+    add(
+      box(innerW + 0.06, 0.03, 0.03, m.steel, innerCx, floorY + railH * 0.52, frontZ + 0.16, {
+        cast: false,
+      }),
+    );
+
+    // Teak louvres closing the left end of the balcony, floor to soffit.
+    for (let i = 0; i < 6; i += 1) {
+      const fx = innerX0 + 0.1 + i * 0.115;
       add(
         box(
-          FRAME_T,
-          head - y0 + FRAME_T,
-          depth * 0.55,
-          m.facadeWhite,
-          jx,
-          (y0 + head) / 2,
-          frontZ + depth * 0.2,
+          0.055,
+          soffitY - floorY - 0.05,
+          0.16,
+          m.teak,
+          fx,
+          (floorY + soffitY) / 2,
+          frontZ + 0.42,
         ),
       );
     }
-
-    // --- Dark timber soffit with recessed downlights ---
-    add(
-      box(
-        width - 0.1,
-        0.1,
-        depth - 0.35,
-        m.balconyCeiling,
-        (bx0 + bx1) / 2,
-        head - 0.06,
-        frontZ + depth / 2 + 0.15,
-      ),
-    );
-    const lights = 4;
-    for (let i = 0; i < lights; i += 1) {
-      const lx = bx0 + (width * (i + 0.5)) / lights;
-      add(cylinder(0.055, 0.03, m.brass, lx, head - 0.12, frontZ + depth * 0.45, { cast: false }));
-    }
-
-    // --- Glass balustrade with a steel top rail, set at the frame line ---
-    const railY = y0 + 0.52;
-    add(
-      box(width - 0.15, 0.9, 0.025, m.glassRail, (bx0 + bx1) / 2, railY, frontZ + 0.22, {
-        cast: false,
-      }),
-    );
-    add(
-      box(width - 0.15, 0.055, 0.055, m.steel, (bx0 + bx1) / 2, railY + 0.47, frontZ + 0.22, {
-        cast: false,
-      }),
-    );
-
-    // --- Slender timber louvre fins closing one end of the balcony ---
-    // Plain stained timber, not the slatted map: at this width a tiled texture
-    // reads as a solid slab instead of a fin.
-    const finCount = 9;
-    for (let i = 0; i < finCount; i += 1) {
-      const fx = bx0 + 0.16 + i * 0.13;
-      add(box(0.045, H - 0.62, 0.22, m.woodDark, fx, y0 + (H - 0.62) / 2, frontZ + 0.46));
-    }
-
-    // Recessed back wall of the balcony. It is kept light: a deep loggia with a
-    // dark soffit otherwise collapses to a black void, which is not how the
-    // photographs read — the rear wall clearly catches bounced daylight.
-    add(
-      box(width, H - 0.55, 0.06, m.facadeCream, (bx0 + bx1) / 2, y0 + (H - 0.55) / 2, wallZ - 0.04),
-    );
   }
 }
 
-/**
- * Projecting box surrounds on the solid bay's windows — a dark taupe frame that
- * stands proud of the render, with the glazing recessed behind it.
- */
+/** The cream bay's two charcoal box-framed windows, one per upper level. */
 function buildBoxWindows(
   add: (o: Object3D) => void,
   m: MaterialLibrary,
-  sx0: number,
   W: number,
   levels: number,
   H: number,
-  wallZ: number,
 ): void {
-  const bayW = W - sx0;
-  // Two windows per level across the solid bay.
-  const cols = [sx0 + bayW * 0.32, sx0 + bayW * 0.76];
-  const winW = Math.min(1.35, bayW * 0.4);
-  const winH = 1.5;
+  const bx0 = W * BAY_X0;
+  const bayW = W * (BAY_X1 - BAY_X0);
+  const cx = bx0 + bayW * 0.54;
+  const winW = Math.min(1.3, bayW * 0.62);
+  const winH = 1.45;
+  const t = 0.14;
+  const proj = 0.2;
 
-  for (let level = 0; level < levels; level += 1) {
-    const sill = level * H + 1.15;
-    for (const [i, cx] of cols.entries()) {
-      const w = i === 0 ? winW : winW * 0.72; // the outer window is narrower
-      const z = wallZ - 0.06;
-
-      // Glazing, recessed.
-      add(box(w, winH, 0.03, m.glass, cx, sill + winH / 2, z - 0.02));
-
-      // The projecting box: head, sill and two jambs. Deliberately chunky —
-      // the depth of these reveals is what gives the elevation its relief.
-      const t = 0.22;
-      add(
-        box(
-          w + t * 2,
-          t,
-          SURROUND_PROJECT,
-          m.windowSurround,
-          cx,
-          sill + winH + t / 2,
-          z - SURROUND_PROJECT / 2,
-        ),
-      );
-      add(
-        box(
-          w + t * 2,
-          t,
-          SURROUND_PROJECT + 0.06,
-          m.windowSurround,
-          cx,
-          sill - t / 2,
-          z - (SURROUND_PROJECT + 0.06) / 2,
-        ),
-      );
-      for (const jx of [cx - w / 2 - t / 2, cx + w / 2 + t / 2]) {
-        add(
-          box(
-            t,
-            winH + t * 2,
-            SURROUND_PROJECT,
-            m.windowSurround,
-            jx,
-            sill + winH / 2,
-            z - SURROUND_PROJECT / 2,
-          ),
-        );
-      }
-      // Light mullion inside the opening.
-      add(box(0.05, winH, 0.05, m.facadeWhite, cx, sill + winH / 2, z - 0.03));
+  for (let level = 1; level < levels; level += 1) {
+    const sill = level * H + 0.95;
+    // Glazing with a sheer curtain behind it.
+    add(box(winW, winH, 0.03, m.darkGlazing, cx, sill + winH / 2, -0.07));
+    add(box(winW * 0.9, winH * 0.9, 0.02, m.curtain, cx, sill + winH / 2, -0.04));
+    // Charcoal box surround: head, sill, jambs and a centre mullion.
+    add(box(winW + t * 2, t, proj, m.charcoal, cx, sill + winH + t / 2, -proj / 2 - 0.04));
+    add(box(winW + t * 2, t, proj, m.charcoal, cx, sill - t / 2, -proj / 2 - 0.04));
+    for (const jx of [cx - winW / 2 - t / 2, cx + winW / 2 + t / 2]) {
+      add(box(t, winH + t * 2, proj, m.charcoal, jx, sill + winH / 2, -proj / 2 - 0.04));
     }
+    add(box(0.06, winH, 0.06, m.charcoal, cx, sill + winH / 2, -0.09));
   }
 }
 
-/**
- * The stack of terracotta slatted hoods over the side-wall windows — the most
- * recognisable detail on the flank elevation.
- */
-function buildSlatHoods(
+/** The white fin at the right edge, scored with three vertical grooves. */
+function buildGroovedFin(
   add: (o: Object3D) => void,
   m: MaterialLibrary,
   W: number,
-  D: number,
-  levels: number,
-  H: number,
+  total: number,
 ): void {
-  const zPositions = [D * 0.28, D * 0.55, D * 0.8];
-  for (const sideX of [0, W]) {
-    const dir = sideX === 0 ? -1 : 1; // which way the hood faces
-    const faceX = sideX + dir * 0.02;
-    for (let level = 0; level < levels; level += 1) {
-      for (const [i, z] of zPositions.entries()) {
-        if ((i + level) % 2 === 1) continue; // stagger, as built
-        const sill = level * H + 1.2;
-        const winH = 1.3;
-        const winW = 1.1;
+  const fw = W * FIN_X1;
+  const cx = fw / 2;
+  const y0 = total * 0.28;
+  const h = total * 0.68;
 
-        // Recessed dark window behind the hood.
-        add(box(0.06, winH, winW, m.windowSurround, faceX, sill + winH / 2, z));
-        add(box(0.03, winH - 0.12, winW - 0.12, m.glass, faceX + dir * 0.03, sill + winH / 2, z));
-
-        // The projecting slatted hood, tilted slightly down and out.
-        const hood = box(
-          HOOD_PROJECT,
-          0.5,
-          winW + 0.5,
-          m.slatWood,
-          faceX + (dir * HOOD_PROJECT) / 2,
-          sill + winH + 0.28,
-          z,
-        );
-        add(hood);
-        // Its underside shadow plate.
-        add(
-          box(
-            HOOD_PROJECT,
-            0.06,
-            winW + 0.5,
-            m.windowSurround,
-            faceX + (dir * HOOD_PROJECT) / 2,
-            sill + winH + 0.02,
-            z,
-          ),
-        );
-      }
-    }
+  add(box(fw, h, 0.5, m.facadeWhite, cx, y0 + h / 2, -0.22));
+  // Three slim grooves down its face.
+  for (let i = 0; i < 3; i += 1) {
+    const gx = cx - fw * 0.24 + i * fw * 0.24;
+    add(box(0.045, h - 0.5, 0.05, m.reveal, gx, y0 + h / 2, -0.47));
   }
 }
 
-/** Scored reveal grooves in the render and the dark fascia at the roof line. */
-function buildRevealsAndFascia(
+/** The entrance porch: lit teak soffit, timber door and the carrying column. */
+function buildPorch(
   add: (o: Object3D) => void,
   m: MaterialLibrary,
   W: number,
-  D: number,
-  levels: number,
   H: number,
+  frontZ: number,
 ): void {
-  const total = levels * H;
-
-  // Groups of thin horizontal grooves high on the side walls.
-  for (const sideX of [0.02, W - 0.02]) {
-    for (let k = 0; k < 3; k += 1) {
-      const y = total - 0.7 - k * 0.16;
-      add(box(0.03, 0.035, D * 0.5, m.reveal, sideX, y, D * 0.45));
-    }
-  }
-
-  // Vertical reveal pair on the front solid bay.
-  for (const rx of [W * 0.66, W * 0.69]) {
-    add(box(0.035, total * 0.55, 0.03, m.reveal, rx, total * 0.55, -0.055));
-  }
-
-  // Dark fascia capping the parapet. It sits on the parapet top (the parapet is
-  // 1 m above the roof slab) and follows the real building line — the front
-  // plane at z = 0 and both flanks — never floating out at the balcony line.
-  const fasciaY = total + 1.02;
-  add(box(W + 0.44, 0.09, 0.3, m.windowSurround, W / 2, fasciaY, 0.02));
-  add(box(0.3, 0.09, D + 0.44, m.windowSurround, -0.02, fasciaY, D / 2));
-  add(box(0.3, 0.09, D + 0.44, m.windowSurround, W + 0.02, fasciaY, D / 2));
-  add(box(W + 0.44, 0.09, 0.3, m.windowSurround, W / 2, fasciaY, D - 0.02));
-}
-
-/**
- * Caps the projecting balcony block: a slim slab over the top balcony with its
- * own dark edge trim, matching the canopy on the built house.
- */
-export function buildBalconyCap(m: MaterialLibrary): Group {
-  const g = new Group();
-  const W = ENVELOPE.width;
-  const H = ENVELOPE.levelHeight;
-  const total = ENVELOPE.levels * H;
-  const frontZ = -ENVELOPE.frontBalcony;
-  const bx0 = W * BALCONY_X0 - FRAME_T;
-  const bx1 = W * BALCONY_X1 + FRAME_T;
-  const width = bx1 - bx0;
+  const x0 = W * FRAME_X0 + FRAME_BAND;
+  const x1 = W * FRAME_X1 - FRAME_BAND;
+  const cx = (x0 + x1) / 2;
   const depth = -frontZ;
 
-  const slab = box(
-    width,
-    0.22,
-    depth + 0.3,
-    m.facadeWhite,
-    (bx0 + bx1) / 2,
-    total + 0.11,
-    frontZ + depth / 2 - 0.15,
+  // Teak soffit under the balcony block, with downlights.
+  add(
+    box(x1 - x0, 0.1, depth - 0.4, m.teak, cx, H - 0.72, frontZ + depth / 2 + 0.2, { cast: false }),
   );
-  slab.userData.exteriorWall = true;
-  g.add(slab);
-  const trim = box(
-    width + 0.12,
-    0.08,
-    0.22,
-    m.windowSurround,
-    (bx0 + bx1) / 2,
-    total + 0.24,
-    frontZ - 0.06,
+  for (let i = 0; i < 3; i += 1) {
+    const lx = x0 + ((x1 - x0) * (i + 0.5)) / 3;
+    add(cylinder(0.07, 0.03, m.downlight, lx, H - 0.78, frontZ + depth * 0.5, { cast: false }));
+  }
+
+  // Column on the right of the porch carrying the frame above.
+  add(box(0.3, H - 0.7, 0.3, m.facadeWhite, x1 - 0.15, (H - 0.7) / 2, frontZ + 0.3));
+
+  // Timber entrance door, set back at the house wall, with a side light.
+  add(box(1.05, 2.15, 0.08, m.doorWood, cx - 0.3, 1.075, -0.09));
+  add(box(0.09, 2.15, 0.1, m.charcoal, cx - 0.87, 1.075, -0.1));
+  add(box(0.09, 2.15, 0.1, m.charcoal, cx + 0.27, 1.075, -0.1));
+  // Glazed panel beside the door.
+  add(box(1.0, 1.9, 0.04, m.darkGlazing, cx + 1.1, 1.15, -0.08));
+  // Wall-mounted lamp.
+  add(box(0.1, 0.26, 0.1, m.charcoal, x0 - 0.25, 1.95, -0.12, { cast: false }));
+  add(box(0.06, 0.1, 0.06, m.downlight, x0 - 0.25, 1.82, -0.12, { cast: false }));
+}
+
+/** Charcoal fascia capping the parapet on the front and both flanks. */
+function buildFascia(
+  add: (o: Object3D) => void,
+  m: MaterialLibrary,
+  W: number,
+  D: number,
+  total: number,
+): void {
+  const y = total + 1.02;
+  add(box(W + 0.5, 0.12, 0.34, m.charcoal, W / 2, y, 0.02));
+  add(box(0.34, 0.12, D + 0.5, m.charcoal, -0.02, y, D / 2));
+  add(box(0.34, 0.12, D + 0.5, m.charcoal, W + 0.02, y, D / 2));
+  add(box(W + 0.5, 0.12, 0.34, m.charcoal, W / 2, y, D - 0.02));
+  // A second, lower fascia over the balcony-frame head, as drawn.
+  const fx0 = W * FRAME_X0;
+  const fx1 = W * FRAME_X1;
+  add(
+    box(
+      fx1 - fx0 + 0.3,
+      0.1,
+      0.3,
+      m.charcoal,
+      (fx0 + fx1) / 2,
+      total + 0.16,
+      -ENVELOPE.frontBalcony + 0.1,
+    ),
   );
-  trim.userData.exteriorWall = true;
-  g.add(trim);
-  return g;
+}
+
+/** Charcoal box windows repeated down the flank walls. */
+function buildSideDetail(
+  add: (o: Object3D) => void,
+  m: MaterialLibrary,
+  W: number,
+  D: number,
+  levels: number,
+  H: number,
+): void {
+  const zs = [D * 0.3, D * 0.58, D * 0.84];
+  for (const sideX of [0, W]) {
+    const dir = sideX === 0 ? -1 : 1;
+    const face = sideX + dir * 0.03;
+    for (let level = 0; level < levels; level += 1) {
+      for (const z of zs) {
+        const sill = level * H + 1.1;
+        const wh = 1.3;
+        const ww = 1.0;
+        add(box(0.04, wh, ww, m.darkGlazing, face, sill + wh / 2, z));
+        const t = 0.13;
+        add(box(0.18, t, ww + t * 2, m.charcoal, face + dir * 0.09, sill + wh + t / 2, z));
+        add(box(0.18, t, ww + t * 2, m.charcoal, face + dir * 0.09, sill - t / 2, z));
+        add(
+          box(
+            0.18,
+            wh + t * 2,
+            t,
+            m.charcoal,
+            face + dir * 0.09,
+            sill + wh / 2,
+            z - ww / 2 - t / 2,
+          ),
+        );
+        add(
+          box(
+            0.18,
+            wh + t * 2,
+            t,
+            m.charcoal,
+            face + dir * 0.09,
+            sill + wh / 2,
+            z + ww / 2 + t / 2,
+          ),
+        );
+      }
+    }
+  }
 }

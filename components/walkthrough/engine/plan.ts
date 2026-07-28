@@ -69,14 +69,20 @@ const ROOMS_FT: RoomFt[] = [
   { id: 'pooja', name: 'Pooja', kind: 'pooja', x0: 14, z0: 38, x1: 19, z1: 44 },
   { id: 'rear-hall', name: 'Rear Passage', kind: 'hall', x0: 14, z0: 29, x1: 19, z1: 38 },
   { id: 'bed2', name: 'Bed Room 2', kind: 'bedroom', x0: 19, z0: 29, x1: 32, z1: 44 },
-  // Balconies
+  // Balconies.
+  //
+  // The plan dimensions the front balcony across the full 32' frontage, but the
+  // elevation shows it projecting only over the central bay, framed by the stair
+  // tower on one side and the window bay on the other. The elevation governs
+  // here: a full-width projecting slab lays a dark band right across the facade
+  // that the drawing does not have.
   {
     id: 'balcony-front',
     name: 'Front Balcony',
     kind: 'balcony',
-    x0: 0,
+    x0: 9.5,
     z0: -FRONT_BALCONY_FT,
-    x1: 32,
+    x1: 24.5,
     z1: 0,
   },
   {

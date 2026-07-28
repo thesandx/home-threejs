@@ -66,16 +66,16 @@ export function buildSite(m: MaterialLibrary): SiteBuild {
       5,
       0.06,
       FRONT_YARD + ENVELOPE.frontBalcony + 0.5,
-      m.concreteApron,
+      m.pavingTile,
       W / 2,
       0.01,
       (zFront + frontZ) / 2,
       { cast: false },
     ),
   );
-  // Concrete footpath running the full frontage, from the compound wall out to
-  // the kerb. The references show paving here, never lawn.
-  group.add(box(70, 0.05, 4.4, m.concreteApron, W / 2, 0.015, zFront - 2.2, { cast: false }));
+  // Large-format beige tile forecourt across the frontage, from the compound
+  // wall out to the kerb — the elevation shows paving here, never lawn.
+  group.add(box(70, 0.05, 4.4, m.pavingTile, W / 2, 0.015, zFront - 2.2, { cast: false }));
   // Kerb upstand at the road edge.
   group.add(box(70, 0.16, 0.22, m.parapet, W / 2, 0.08, zFront - 4.4, { cast: false }));
   // Street beyond the boundary.
@@ -160,11 +160,9 @@ function buildCompound(
       const t = i / piers;
       const px = alongX ? minX + t * length : cx;
       const pz = alongX ? cz : minZ + t * length;
-      group.add(box(0.32, H, thick + 0.14, m.facadeWhite, px, H / 2, pz));
-      group.add(box(0.44, 0.1, thick + 0.26, m.facadeWhite, px, H + 0.05, pz));
-      // Urn finial lamp.
-      group.add(cylinder(0.07, 0.16, m.metalDark, px, H + 0.18, pz, { cast: false }));
-      group.add(sphere(0.1, m.parapet, px, H + 0.33, pz, { cast: false }));
+      // Slim white pier with a flat projecting cap, as drawn — no finials.
+      group.add(box(0.3, H + 0.28, thick + 0.16, m.facadeWhite, px, (H + 0.28) / 2, pz));
+      group.add(box(0.42, 0.09, thick + 0.3, m.facadeWhite, px, H + 0.33, pz));
     }
     colliders.push({ minX, maxX, minZ, maxZ, baseY: 0, topY: H });
   };
@@ -177,19 +175,20 @@ function buildCompound(
   wall(xR, xR + T, zFront, zBack);
   wall(xL, xR, zBack, zBack + T);
 
-  // Taller gate piers, each with a nameplate on the approach side.
+  // Gate piers: plain white with a flat cap, matching the boundary piers.
   for (const px of [W / 2 - gateW / 2, W / 2 + gateW / 2]) {
-    group.add(box(0.42, 2.15, 0.42, m.facadeWhite, px, 1.075, zFront - T / 2));
-    group.add(box(0.54, 0.12, 0.54, m.facadeWhite, px, 2.21, zFront - T / 2));
-    group.add(cylinder(0.08, 0.18, m.metalDark, px, 2.36, zFront - T / 2, { cast: false }));
-    group.add(sphere(0.11, m.parapet, px, 2.53, zFront - T / 2, { cast: false }));
+    group.add(box(0.42, 2.25, 0.46, m.facadeWhite, px, 1.125, zFront - T / 2));
+    group.add(box(0.54, 0.1, 0.58, m.facadeWhite, px, 2.3, zFront - T / 2));
   }
-  group.add(
-    box(0.3, 0.22, 0.03, m.brass, W / 2 - gateW / 2, 1.5, zFront - T - 0.2, { cast: false }),
-  );
 
-  // Two dark-brown gate leaves: a heavy frame, close-spaced vertical bars, and
-  // a solid lower panel — the pattern on the built gate.
+  // A teak panel with a downlight above it, set into the wall left of the gate.
+  const panelX = W / 2 - gateW / 2 - 1.15;
+  group.add(box(0.55, 0.95, 0.08, m.teak, panelX, 1.0, zFront - T - 0.04));
+  group.add(box(0.16, 0.3, 0.12, m.charcoal, panelX, 1.62, zFront - T - 0.06, { cast: false }));
+  group.add(box(0.1, 0.06, 0.08, m.downlight, panelX, 1.46, zFront - T - 0.06, { cast: false }));
+
+  // Two charcoal gate leaves: a band of horizontal slats above a field of
+  // close-spaced vertical bars — the pattern drawn on the elevation.
   for (const side of [-1, 1] as const) {
     const pivot = new Group();
     pivot.userData.dynamic = true;
@@ -198,24 +197,28 @@ function buildCompound(
     const leafW = gateW / 2 - 0.08;
     const dirX = -side; // the leaf extends toward the opening
     const midX = (dirX * leafW) / 2;
-    const gateH = 1.85;
+    const gateH = 2.0;
+    const splitY = gateH * 0.62; // slats above, bars below
     const leaf = new Group();
 
     // Outer frame.
-    leaf.add(box(leafW, 0.1, 0.09, m.gateWood, midX, 0.06, 0));
-    leaf.add(box(leafW, 0.1, 0.09, m.gateWood, midX, gateH, 0));
-    leaf.add(box(0.09, gateH, 0.09, m.gateWood, dirX * 0.045, gateH / 2, 0));
-    leaf.add(box(0.09, gateH, 0.09, m.gateWood, dirX * (leafW - 0.045), gateH / 2, 0));
-    // Mid rail, splitting panel from bars.
-    leaf.add(box(leafW, 0.1, 0.08, m.gateWood, midX, 0.62, 0));
-    // Solid lower panel with a light decorative inset.
-    leaf.add(box(leafW - 0.14, 0.5, 0.05, m.gateWood, midX, 0.34, 0));
-    leaf.add(box(leafW * 0.28, 0.22, 0.02, m.parapet, midX, 0.34, 0.035, { cast: false }));
-    // Vertical bars above the rail.
-    const bars = Math.max(6, Math.floor(leafW / 0.13));
+    leaf.add(box(leafW, 0.08, 0.08, m.charcoal, midX, 0.04, 0));
+    leaf.add(box(leafW, 0.08, 0.08, m.charcoal, midX, gateH, 0));
+    leaf.add(box(0.08, gateH, 0.08, m.charcoal, dirX * 0.04, gateH / 2, 0));
+    leaf.add(box(0.08, gateH, 0.08, m.charcoal, dirX * (leafW - 0.04), gateH / 2, 0));
+    leaf.add(box(leafW, 0.07, 0.07, m.charcoal, midX, splitY, 0));
+
+    // Horizontal slat band across the top.
+    const slats = 5;
+    for (let i = 0; i < slats; i += 1) {
+      const sy = splitY + 0.12 + (i * (gateH - splitY - 0.2)) / slats;
+      leaf.add(box(leafW - 0.12, 0.07, 0.05, m.charcoal, midX, sy, 0));
+    }
+    // Close-spaced vertical bars below.
+    const bars = Math.max(8, Math.floor(leafW / 0.11));
     for (let i = 1; i < bars; i += 1) {
       const bx = dirX * (i * (leafW / bars));
-      leaf.add(box(0.035, gateH - 0.72, 0.05, m.gateWood, bx, 0.62 + (gateH - 0.72) / 2, 0));
+      leaf.add(box(0.032, splitY - 0.1, 0.045, m.charcoal, bx, splitY / 2 + 0.02, 0));
     }
     pivot.add(leaf);
     group.add(pivot);

@@ -379,10 +379,14 @@ export class HouseBuilder {
     this.group.add(box(w, 0.12, d, under, cx, floorY - 0.09, cz, { cast: false }));
     this.floors.push({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, y: floorY });
 
-    // The ground-floor "balcony" is the open stilt porch — it has columns and a
-    // driveway, not a balustrade. The facade module builds that instead.
+    // Only the rear balcony gets a generic balustrade here. The ground floor is
+    // the open porch, and the front balconies are part of the modelled
+    // elevation — `exterior/facade.ts` owns their frame, rail and louvres, and a
+    // second full-width rail across the frontage would cut straight through it.
     const level = Math.round(floorY / ENVELOPE.levelHeight);
-    if (room.kind === 'balcony' && level > 0) this.buildBalconyRail(room, floorY);
+    if (room.kind === 'balcony' && level > 0 && room.id !== 'balcony-front') {
+      this.buildBalconyRail(room, floorY);
+    }
   }
 
   private floorFinish(kind: Room['kind']): Material {

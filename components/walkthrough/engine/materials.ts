@@ -77,6 +77,12 @@ export class MaterialLibrary {
   readonly gateWood: MeshStandardMaterial; // dark brown gate leaves
   readonly concreteApron: MeshStandardMaterial; // grey cast driveway
   readonly reveal: MeshStandardMaterial; // shadow line inside a groove
+  readonly teak: MeshStandardMaterial; // rich cladding / louvre / soffit timber
+  readonly darkGlazing: MeshStandardMaterial; // near-black stair-tower glass
+  readonly charcoal: MeshStandardMaterial; // window frames, gate, fascia
+  readonly downlight: MeshStandardMaterial; // lit recessed fitting
+  readonly curtain: MeshStandardMaterial; // sheer white curtain behind glass
+  readonly pavingTile: MeshStandardMaterial; // beige large-format forecourt
 
   constructor() {
     const track = <T extends Texture>(t: T): T => {
@@ -238,6 +244,39 @@ export class MaterialLibrary {
       withMap(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }), apronMap),
     );
     this.reveal = mat(new MeshStandardMaterial({ color: 0x8d8477, roughness: 1 }));
+
+    // The elevation's timber: a rich reddish teak used for the stair-tower
+    // cladding, the balcony louvres and the plank soffits.
+    // Toned well down from the raw slat map, which is far too saturated a
+    // terracotta on its own — the reference timber is a warm mid brown.
+    const teakMap = track(slatTexture(1, 6));
+    this.teak = mat(
+      withMap(new MeshStandardMaterial({ color: 0x7a5236, roughness: 0.55 }), teakMap),
+    );
+    this.darkGlazing = mat(
+      new MeshStandardMaterial({ color: 0x191d23, roughness: 0.1, metalness: 0.55 }),
+    );
+    this.charcoal = mat(
+      new MeshStandardMaterial({ color: 0x2b2e33, roughness: 0.45, metalness: 0.35 }),
+    );
+    // Emissive so the recessed fittings actually read as lit in the render.
+    this.downlight = mat(
+      new MeshStandardMaterial({
+        color: 0xffe6bd,
+        emissive: 0xffc879,
+        emissiveIntensity: 2.4,
+        roughness: 0.3,
+      }),
+    );
+    this.curtain = mat(
+      new MeshStandardMaterial({ color: 0xf4f1ea, roughness: 1, emissive: 0x2a2418 }),
+    );
+    this.pavingTile = mat(
+      withMap(
+        new MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 }),
+        track(tileTexture('#ddd2bd', '#bdb29d', 7)),
+      ),
+    );
   }
 
   /** A tinted one-off wall-paint variant, tracked for disposal. */
