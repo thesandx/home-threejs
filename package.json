@@ -31,8 +31,8 @@
   "dependencies": {
     "lil-gui": "^0.21.0",
     "next": "16.2.10",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "three": "^0.185.1"
   },
   "devDependencies": {
